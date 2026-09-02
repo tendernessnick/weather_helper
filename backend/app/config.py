@@ -1,11 +1,34 @@
-"""Global configuration, read from environment variables with sensible defaults."""
+"""Global configuration, read from environment variables with sensible defaults.
+
+A backend/.env file (KEY=value lines) is loaded first when present, so local
+secrets like VAPID keys do not need to be exported by hand. Real environment
+variables always win over .env values.
+"""
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 # Hong Kong has no DST; a fixed UTC+8 offset keeps all HKO/Open-Meteo local-time
 # arithmetic simple and dependency-free.
 HK_TZ = timezone(timedelta(hours=8))
+
+
+def _load_dotenv() -> None:
+    here = Path(__file__).resolve().parent.parent  # backend/
+    for candidate in (here / ".env", here.parent / ".env"):
+        if not candidate.is_file():
+            continue
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            value = value.strip().strip("'\"")
+            os.environ.setdefault(key.strip(), value)
+
+
+_load_dotenv()
 
 
 def hk_now() -> datetime:

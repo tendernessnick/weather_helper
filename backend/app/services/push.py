@@ -97,9 +97,9 @@ def check_and_notify(db: Session) -> int:
             continue
 
         payload = {
-            "title": "Rain risk for your tennis session",
-            "body": (f"{court.name_sc}: {pop}% chance of rain around "
-                     f"{sub.play_at.strftime('%H:%M')} - check the court page."),
+            "title": "球场下雨风险提醒",
+            "body": (f"{court.name_sc}：{sub.play_at.strftime('%H:%M')} 前后降水概率约 "
+                     f"{pop}%，出门前再看一眼临近预报"),
             "url": f"/courts/{court.id}",
         }
         if _send(sub, payload):
