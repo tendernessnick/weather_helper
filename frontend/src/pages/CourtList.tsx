@@ -77,7 +77,7 @@ export default function CourtList() {
   };
 
   return (
-    <div>
+    <div className="relative">
       <div className="px-4 pt-4">
         <input
           value={search}
@@ -98,16 +98,19 @@ export default function CourtList() {
         <div className="p-8 text-center text-sm text-slate-400">没有匹配的球场</div>
       )}
 
-      <div className="flex gap-2 px-4 pt-2">
-        <ul className="flex-1">
+      {/* List keeps a dedicated right gutter (pr-8): cards and sticky letter
+          headers physically end before the floating A-Z rail, so the rail can
+          never be covered regardless of z-index. */}
+      <div className="pl-4 pr-8 pt-2">
+        <ul>
           {activeLetters.map((letter) => (
             <li key={letter} id={`letter-${letter}`} className="scroll-mt-20">
-              <div className="sticky top-[60px] z-10 -ml-4 bg-slate-100/95 pl-4 pr-2 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
+              <div className="sticky top-[60px] z-10 -ml-4 mb-2 bg-slate-100/95 pl-4 pr-2 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
                 {letter}
               </div>
-              <ul>
+              <ul className="space-y-2">
                 {(grouped.get(letter) ?? []).map((court) => (
-                  <li key={court.id} className="mb-2">
+                  <li key={court.id}>
                     <a
                       href={`/courts/${court.id}`}
                       className="block rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:bg-slate-50"
@@ -132,24 +135,26 @@ export default function CourtList() {
             </li>
           ))}
         </ul>
-
-        {activeLetters.length > 0 && (
-          <nav
-            className="sticky top-20 z-20 self-start rounded-full bg-white/95 py-1 shadow-sm ring-1 ring-slate-200"
-            aria-label="字母索引"
-          >
-            <ul className="flex flex-col text-[10px] leading-[1.15] text-emerald-700">
-              {activeLetters.map((letter) => (
-                <li key={letter}>
-                  <button onClick={() => jump(letter)} className="px-1 py-px">
-                    {letter}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
       </div>
+
+      {/* iOS-contacts-style A-Z rail: floats at the right edge of the app
+          column, vertically centred in the viewport; independent of scroll. */}
+      {activeLetters.length > 0 && (
+        <nav
+          className="sticky top-1/2 z-30 -translate-y-1/2 ml-auto mr-1 w-fit"
+          aria-label="字母索引"
+        >
+          <ul className="flex flex-col items-center rounded-full bg-white/95 py-1.5 shadow-md ring-1 ring-slate-200 text-[9px] leading-[1.25] text-emerald-700">
+            {activeLetters.map((letter) => (
+              <li key={letter}>
+                <button onClick={() => jump(letter)} className="px-1 py-px">
+                  {letter}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }
