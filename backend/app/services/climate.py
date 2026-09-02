@@ -15,13 +15,17 @@ import httpx
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..config import hk_now, settings
+from ..config import hk_now
 from ..models import Court, Climatology, KvCache, Persistence
 
 logger = logging.getLogger(__name__)
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-RAIN_THRESHOLD = settings.rain_mm_threshold  # >=0.1mm/h counts as rain
+# ERA5 has a known drizzle bias in South China (frequent spurious 0.1-0.3mm
+# hours); a 0.5mm threshold both filters that and matches the smallest rain
+# that actually matters for tennis. The live verification pipeline keeps the
+# 0.1mm gauge threshold - these are two different questions.
+RAIN_THRESHOLD = 0.5
 SURVIVAL_LENGTHS = (1, 2, 3, 4)  # booking lengths in hours
 BACKFILL_START = (datetime.now().year - 10, 1)  # (year, month): 10 years back
 

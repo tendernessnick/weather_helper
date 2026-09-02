@@ -352,7 +352,7 @@ def persistence_card(db: Session, court_id: str) -> dict | None:
         "p_dry_turns_wet_next_hour": round(row.dry_to_wet / dry, 3) if dry else None,
         "dry_survival_1_to_4h": survival,
         "samples": wet + dry,
-        "grid_note": "ERA5 区域网格级(~11km)，同区球场数值相同",
+        "grid_note": "ERA5 十年档案 · ≥0.5mm 口径 · 区域网格级(~11km)，同区球场数值相同",
     }
 
 

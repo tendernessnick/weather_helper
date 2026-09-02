@@ -63,7 +63,8 @@ def test_lead_buckets_first_entry_frozen(db):
 
 def test_climate_aggregates_counts(db):
     agg = Aggregates()
-    # 2026-06-01 10:00 onwards: dry, dry, dry, wet, wet, dry (6 hours, one month)
+    # 2026-06-01 10:00 onwards: dry, dry, dry, 1.5mm, 0.3mm(=dry at the
+    # 0.5mm climate threshold), dry
     base = datetime(2026, 6, 1, 10)
     times = [(base + timedelta(hours=i)).isoformat() for i in range(6)]
     mms = [0.0, 0.0, 0.0, 1.5, 0.3, 0.0]
@@ -72,21 +73,20 @@ def test_climate_aggregates_counts(db):
     # climatology: month=6 hour pairs
     assert agg.clim[(6, 10)] == [1, 0]
     assert agg.clim[(6, 13)] == [1, 1]
-    assert agg.clim[(6, 14)] == [1, 1]
+    assert agg.clim[(6, 14)] == [1, 0]  # 0.3mm below climate threshold
     assert agg.clim[(6, 15)] == [1, 0]
 
-    # transitions: d->d, d->d, d->w, w->w, w->d  => dd=2, dw=1, ww=1, wd=1
+    # transitions: d->d, d->d, d->w, w->d, d->d  => dd=3, dw=1, ww=0, wd=1
     ww, wd, dw, dd = agg.trans[6]
-    assert (ww, wd, dw, dd) == (1, 1, 1, 2)
+    assert (ww, wd, dw, dd) == (0, 1, 1, 3)
 
-    # survival: dry starts at hours 0,1,2,5; hour5 has no next hour.
-    # base counts dry starts with an OBSERVED next hour (wet next hour still
-    # counts - it is a survival FAILURE, not an exclusion): hours 0,1,2 -> 3
-    #   hour0: L1 ok, L2 ok, L3 blocked by wet hour3
-    #   hour1: L1 ok, L2 blocked
-    #   hour2: L1 window wet -> observed but not survived
-    assert agg.surv_base[6] == 3
-    assert agg.surv_ok[6][1] == 2
+    # survival: dry starts at hours 0,1,2,4 (hour5 lacks a next hour)
+    #   hour0: L1 dry ok, L2 dry ok, L3 blocked by wet hour3
+    #   hour1: L1 dry ok, L2 blocked by wet hour3
+    #   hour2: L1 window wet -> base counts, survival does not
+    #   hour4: L1 dry ok, L2 out of range
+    assert agg.surv_base[6] == 4
+    assert agg.surv_ok[6][1] == 3
     assert agg.surv_ok[6][2] == 1
     assert 3 not in agg.surv_ok[6]
 
