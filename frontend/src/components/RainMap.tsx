@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { CourtListItem } from '../types';
 import { HK_LAND } from '../assets/hkGeo';
@@ -13,6 +13,10 @@ const CELL_H = H / (LAT1 - LAT0) * 0.02;
 
 interface MapStep { ending: string; cells: [number, number, number][] }
 interface RainMapData { fetched_at: string; steps: MapStep[] }
+interface ViewBox { x: number; y: number; w: number; h: number }
+
+const FULL_VIEW: ViewBox = { x: 0, y: 0, w: W, h: H };
+const MAX_ZOOM = 4; // furthest zoom-in (view.w >= W / MAX_ZOOM)
 
 const STEP_LABELS = ['+30分', '+1时', '+1.5时', '+2时'];
 
@@ -70,7 +74,11 @@ function Legend() {
   );
 }
 
-function MapSvg({ step, courts, me }: { step?: MapStep; courts: CourtListItem[]; me: { lat: number; lon: number } | null }) {
+function MapSvg({ step, courts, me, view = FULL_VIEW }:
+  { step?: MapStep; courts: CourtListItem[]; me: { lat: number; lon: number } | null; view?: ViewBox }) {
+  // shrink overlay glyph sizes with the view so they stay constant on screen
+  const k = view.w / W;
+
   const landPath = useMemo(() => HK_LAND.map((ring) =>
     'M' + ring.map(([lon, lat]) => {
       const [x, y] = project(lat, lon);
@@ -79,9 +87,9 @@ function MapSvg({ step, courts, me }: { step?: MapStep; courts: CourtListItem[];
   ).join(' '), []);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full">
+    <svg viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} className="h-full w-full">
       {/* land mass under everything */}
-      <path d={landPath} fill="#16283C" stroke="#2C4A6A" strokeWidth="0.7" strokeLinejoin="round" />
+      <path d={landPath} fill="#16283C" stroke="#2C4A6A" strokeWidth={0.7 * k} strokeLinejoin="round" />
       {/* wet cells at full footprint so they read as a continuous radar field */}
       {step?.cells.map(([lat, lon, mm]) => {
         const [x, y] = project(lat, lon);
@@ -92,7 +100,7 @@ function MapSvg({ step, courts, me }: { step?: MapStep; courts: CourtListItem[];
       {/* place-name anchors under the data dots */}
       {DISTRICT_LABELS.map((d) => {
         const [x, y] = project(d.lat, d.lon);
-        return <text key={d.name} x={x} y={y} textAnchor="middle" fontSize="6.5"
+        return <text key={d.name} x={x} y={y} textAnchor="middle" fontSize={6.5 * k}
                      fill="rgba(255,255,255,0.38)" style={{ pointerEvents: 'none' }}>{d.name}</text>;
       })}
       {/* courts */}
@@ -100,21 +108,124 @@ function MapSvg({ step, courts, me }: { step?: MapStep; courts: CourtListItem[];
         const [x, y] = project(c.lat, c.lon);
         if (x < 0 || x > W || y < 0 || y > H) return null;
         const wet = c.nowcast?.rain;
-        return <circle key={c.id} cx={x} cy={y} r="2.2"
+        return <circle key={c.id} cx={x} cy={y} r={2.2 * k}
                        fill={wet ? '#FF5A5F' : '#34C759'} fillOpacity="0.9"
-                       stroke="#fff" strokeWidth="0.6" />;
+                       stroke="#fff" strokeWidth={0.6 * k} />;
       })}
       {/* user */}
       {me && (() => {
         const [x, y] = project(me.lat, me.lon);
         return (
           <g>
-            <circle cx={x} cy={y} r="4" fill="none" stroke="#FFD60A" strokeWidth="1.2" />
-            <circle cx={x} cy={y} r="1.6" fill="#FFD60A" />
+            <circle cx={x} cy={y} r={4 * k} fill="none" stroke="#FFD60A" strokeWidth={1.2 * k} />
+            <circle cx={x} cy={y} r={1.6 * k} fill="#FFD60A" />
           </g>
         );
       })()}
     </svg>
+  );
+}
+
+/** Fullscreen map with pinch-zoom / drag-pan / double-tap-zoom (wheel on desktop).
+ *  All gestures rewrite the SVG viewBox; geometry stays resolution-independent. */
+function ZoomableMap({ step, courts, me }:
+  { step: MapStep; courts: CourtListItem[]; me: { lat: number; lon: number } | null }) {
+  const [view, setView] = useState<ViewBox>(FULL_VIEW);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const lastPinch = useRef(0);
+
+  const zoomAt = (clientX: number, clientY: number, factor: number) => {
+    const host = hostRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const fx = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    const fy = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
+    setView((v) => {
+      const w = Math.min(Math.max(v.w * factor, W / MAX_ZOOM), W);
+      const h = v.h * (w / v.w);
+      const x = Math.min(Math.max(v.x + fx * (v.w - w), 0), W - w);
+      const y = Math.min(Math.max(v.y + fy * (v.h - h), 0), H - h);
+      return { x, y, w, h };
+    });
+  };
+
+  // wheel zoom needs a non-passive native listener to block page scroll
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, e.deltaY > 0 ? 1.15 : 0.87);
+    };
+    host.addEventListener('wheel', onWheel, { passive: false });
+    return () => host.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch { /* pointer not active (e.g. synthetic events) */ }
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      lastPinch.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const prev = pointers.current.get(e.pointerId);
+    const host = hostRef.current;
+    if (!prev || !host) return;
+    if (pointers.current.size === 1) {
+      const rect = host.getBoundingClientRect();
+      // scale from the last-rendered view; the updater stays pure (StrictMode safe)
+      const dx = (e.clientX - prev.x) / rect.width * view.w;
+      const dy = (e.clientY - prev.y) / rect.height * view.h;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      setView((v) => ({
+        ...v,
+        x: Math.min(Math.max(v.x - dx, 0), W - v.w),
+        y: Math.min(Math.max(v.y - dy, 0), H - v.h),
+      }));
+    } else if (pointers.current.size === 2) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastPinch.current > 0 && dist > 0) {
+        zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, lastPinch.current / dist);
+      }
+      lastPinch.current = dist;
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    lastPinch.current = 0;
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      lastPinch.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  };
+
+  const zoomed = view.w < W - 0.5;
+
+  return (
+    <div ref={hostRef} className="relative h-full w-full select-none" style={{ touchAction: 'none' }}
+         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+         onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+         onDoubleClick={(e) => zoomAt(e.clientX, e.clientY, 0.5)}>
+      <MapSvg step={step} courts={courts} me={me} view={view} />
+      <span className="pointer-events-none absolute left-2 top-1.5 text-[9px] text-white/45">
+        双指缩放 · 拖动平移 · 双击放大
+      </span>
+      {zoomed && (
+        <button onClick={() => setView(FULL_VIEW)}
+                className="absolute right-1.5 top-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-semibold text-white/80 active:opacity-80">
+          ⟲ 复位
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -228,7 +339,7 @@ export default function RainMap() {
 
       <p className="mt-1.5 text-[9px] leading-relaxed text-[#8E8E93]">
         由本站每 12 分钟抓取的天文台全港降雨临近预报网格自绘；蓝格越深雨越大（浅蓝≈0.1、深蓝≥5 毫米/半小时）。
-        点"看雨离我多远"需要在手机上允许定位；点地图可全屏。
+        点"看雨离我多远"需要在手机上允许定位；点地图可全屏缩放。
       </p>
 
       {/* full-screen sheet */}
@@ -246,7 +357,7 @@ export default function RainMap() {
           </div>
           <div className="min-h-0 flex-1 px-3">
             <div className="relative h-full overflow-hidden rounded-[16px] bg-[#0F2033]">
-              <MapSvg step={step} courts={courts} me={me} />
+              <ZoomableMap step={step} courts={courts} me={me} />
               <Legend />
             </div>
           </div>
