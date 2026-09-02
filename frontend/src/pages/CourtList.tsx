@@ -134,7 +134,10 @@ export default function CourtList() {
         </ul>
 
         {activeLetters.length > 0 && (
-          <nav className="sticky top-20 self-start" aria-label="字母索引">
+          <nav
+            className="sticky top-20 z-20 self-start rounded-full bg-white/95 py-1 shadow-sm ring-1 ring-slate-200"
+            aria-label="字母索引"
+          >
             <ul className="flex flex-col text-[10px] leading-[1.15] text-emerald-700">
               {activeLetters.map((letter) => (
                 <li key={letter}>
