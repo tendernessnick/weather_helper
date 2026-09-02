@@ -17,3 +17,5 @@ dev-dist/
 .env
 .idea/
 .vscode/
+frontend/tsconfig.tsbuildinfo
+.zcode/
