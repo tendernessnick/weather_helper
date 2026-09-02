@@ -11,8 +11,8 @@ function pct(v: number | null | undefined): string {
 /** Plain-language verdict for the Brier Skill Score. */
 function bssVerdict(bss: number): { label: string; tone: string } {
   if (bss < 0) return { label: '不如查日历', tone: 'bg-rose-100 text-rose-700' };
-  if (bss < 0.1) return { label: '勉强有用', tone: 'bg-amber-100 text-amber-700' };
-  if (bss < 0.25) return { label: '有价值', tone: 'bg-emerald-100 text-emerald-700' };
+  if (bss < 0.1) return { label: '勉强有用', tone: 'bg-[#FFF4E5] text-[#8A6100]' };
+  if (bss < 0.25) return { label: '有价值', tone: 'bg-[#E8F8ED] text-[#1B7A3D]' };
   return { label: '很有价值', tone: 'bg-emerald-600 text-white' };
 }
 
@@ -33,7 +33,7 @@ function reliabilityVerdict(rows: NonNullable<StatsOverview['open_meteo']['relia
 
 function BigStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
+    <div className="rounded-[10px] bg-[#F2F2F7] p-3">
       <div className="text-[10px] text-slate-500">{label}</div>
       <div className="mt-0.5 text-2xl font-bold text-slate-800">{value}</div>
       {note && <div className="mt-0.5 text-[10px] leading-snug text-slate-400">{note}</div>}
@@ -46,9 +46,9 @@ function SourceCard({ title, question, src, windowDays }: { title: string; quest
   const bss = src.bss ?? null;  // deterministic sources omit bss entirely
   const verdict = bss !== null ? bssVerdict(bss) : null;
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="ios-card mx-4 mt-4 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-bold">{title}</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">{title}</h2>
         <span className="text-[10px] text-slate-400">近 {windowDays} 天 · n={src.n}</span>
       </div>
       <p className="mt-0.5 text-[11px] text-slate-500">这一条回答：{question}</p>
@@ -75,18 +75,18 @@ function SourceCard({ title, question, src, windowDays }: { title: string; quest
       )}
 
       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">
+        <span className="rounded-full bg-[#F2F2F7] px-2 py-0.5">
           漏报率 {pct(src.pod === null ? null : 1 - src.pod)}
           {src.pod_ci && ` (${Math.round((1 - src.pod_ci[1]) * 100)}~${Math.round((1 - src.pod_ci[0]) * 100)}%)`}
         </span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">
+        <span className="rounded-full bg-[#F2F2F7] px-2 py-0.5">
           误报率 {pct(src.far)}
           {src.far_ci && ` (${Math.round(src.far_ci[0] * 100)}~${Math.round(src.far_ci[1] * 100)}%)`}
         </span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">Heidke {src.heidke ?? '—'}</span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5">Peirce {src.peirce ?? '—'}</span>
+        <span className="rounded-full bg-[#F2F2F7] px-2 py-0.5">Heidke {src.heidke ?? '—'}</span>
+        <span className="rounded-full bg-[#F2F2F7] px-2 py-0.5">Peirce {src.peirce ?? '—'}</span>
         {src.brier !== null && src.brier !== undefined && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5">Brier {src.brier.toFixed(3)}</span>
+          <span className="rounded-full bg-[#F2F2F7] px-2 py-0.5">Brier {src.brier.toFixed(3)}</span>
         )}
         {src.onset_capture_rate !== undefined && src.onset_capture_rate !== null && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">
@@ -118,8 +118,8 @@ function SourceCard({ title, question, src, windowDays }: { title: string; quest
 function ReliabilityChart({ rows }: { rows: NonNullable<StatsOverview['open_meteo']['reliability']> }) {
   const verdict = reliabilityVerdict(rows);
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">它说的 60%，实际是 60% 吗？</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">它说的 60%，实际是 60% 吗？</h2>
       <p className="mt-0.5 text-[11px] text-slate-500">这一条回答：预报的数字本身可不可信</p>
       {verdict && (
         <p className="mt-1.5 rounded-lg bg-slate-50 p-2 text-[11px] font-medium leading-relaxed text-slate-700">
@@ -156,8 +156,8 @@ const BUCKET_LABEL: Record<string, string> = {
 function LeadDecay({ data }: { data: Record<string, LeadBucket> }) {
   const keys = ['l3', 'l12', 'l24', 'l48'];
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">提前多久看的预报才算数？</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">提前多久看的预报才算数？</h2>
       <p className="mt-0.5 text-[11px] text-slate-500">
         这一条回答：隔天的预报能不能信、提前几天订场该信什么
       </p>
@@ -190,8 +190,8 @@ function LeadDecay({ data }: { data: Record<string, LeadBucket> }) {
 function HourProfile({ profile }: { profile: HourProfileRow[] }) {
   const max = Math.max(0.5, ...profile.map((p) => p.miss_rate ?? 0));
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">几点钟的预报最容易骗你？</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">几点钟的预报最容易骗你？</h2>
       <p className="mt-0.5 text-[11px] text-slate-500">
         这一条回答：哪些时段的"没雨"要打个问号（漏报 = 实际下了但预报没说）
       </p>
@@ -216,8 +216,8 @@ function HourProfile({ profile }: { profile: HourProfileRow[] }) {
 
 function Ranking({ data }: { data: { group_rate: number | null; courts: CourtRankRow[] } }) {
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">哪个球场的预报最靠谱？</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">哪个球场的预报最靠谱？</h2>
       <p className="mt-0.5 text-[11px] text-slate-500">
         这一条回答：同样是预报，在哪被骗的概率小一点
       </p>
@@ -277,16 +277,16 @@ export default function Insights() {
 
   return (
     <div className="pb-4">
-      <div className="mx-4 mt-4 rounded-xl bg-slate-800 p-3">
+      <div className="ios-card mx-4 mt-4 p-3">
         <button
           onClick={() => setGuideOpen((v) => !v)}
-          className="flex w-full items-center justify-between text-left text-[11px] font-bold text-slate-200"
+          className="flex w-full items-center justify-between text-left text-[12px] font-bold text-slate-800"
         >
           <span>📊 这页是什么？怎么读？（点开 30 秒入门）</span>
           <span aria-hidden>{guideOpen ? '−' : '+'}</span>
         </button>
         {guideOpen && (
-          <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-300">
+          <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-600">
             <p>1. 本站持续把"预报当时怎么说的"存档，和"实际下没下"自动对账——这页就是对账结果。</p>
             <p>2. 每个数字都带样本量 n：n 越小越会抖，别把小样本的数字当真理；显示"积累中"就是还不够。</p>
             <p>3. 和"历史平均"比的分数（BSS）才是真本事：因为香港本来就不常下雨，闭眼说"没雨"也能蒙对 88%。</p>

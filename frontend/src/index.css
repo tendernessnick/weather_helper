@@ -5,5 +5,24 @@ html {
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  background-color: #F2F2F7; /* iOS systemGroupedBackground */
+  color: #111114;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* iOS grouped-list card surface */
+.ios-card {
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* iOS grouped-list section header */
+.ios-header {
+  color: #6D6D72;
+  font-size: 13px;
+  font-weight: 400;
 }

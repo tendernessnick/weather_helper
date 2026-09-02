@@ -1,34 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
 import type { CourtListItem } from '../types';
+import Icon from '../components/Icon';
 
 const LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 export function Stars({ accuracy, ok }: { accuracy: number | null; ok: boolean }) {
   if (!ok || accuracy === null) {
-    return <span className="text-[11px] text-slate-400">数据积累中</span>;
+    return <span className="text-[12px] text-[#8E8E93]">积累中</span>;
   }
   const stars = Math.max(1, Math.round(accuracy * 5));
   return (
     <span className="whitespace-nowrap text-[13px]" title={`预报准确率 ${Math.round(accuracy * 100)}%`}>
-      <span className="text-amber-500">{'★'.repeat(stars)}</span>
-      <span className="text-slate-300">{'★'.repeat(5 - stars)}</span>
+      <span className="text-[#F5A623]">{'★'.repeat(stars)}</span>
+      <span className="text-black/15">{'★'.repeat(5 - stars)}</span>
     </span>
   );
 }
 
 function NowcastBadge({ court }: { court: CourtListItem }) {
   if (!court.nowcast) {
-    return <span className="text-[11px] text-slate-400">临近预报加载中</span>;
+    return <span className="text-[12px] text-[#8E8E93]">临近预报加载中</span>;
   }
   const { rain, max_mm } = court.nowcast;
   return rain ? (
-    <span className="whitespace-nowrap rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700">
-      💧 未来2小时有雨 · ≤{max_mm.toFixed(1)}mm
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F1FB] px-2 py-0.5 text-[11px] font-medium text-[#0071E3]">
+      <Icon name="rain" className="h-3 w-3" />
+      未来2小时有雨 · ≤{max_mm.toFixed(1)}mm
     </span>
   ) : (
-    <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-      ☀️ 未来2小时无雨
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#E8F8ED] px-2 py-0.5 text-[11px] font-medium text-[#1B7A3D]">
+      <Icon name="sun" className="h-3 w-3" />
+      未来2小时无雨
     </span>
   );
 }
@@ -89,11 +93,11 @@ export default function CourtList() {
     return (el as HTMLElement | null)?.dataset.letter ?? null;
   };
 
-  const onRailPointerDown = (e: React.PointerEvent) => {
+  const onRailPointerDown = (e: ReactPointerEvent) => {
     e.preventDefault(); // no native text selection while seeking
     draggingRef.current = true;
     lastLetterRef.current = null;
-    document.body.style.userSelect = "none";
+    document.body.style.userSelect = 'none';
     railRef.current?.setPointerCapture(e.pointerId);
     const letter = letterUnderPointer(e.clientX, e.clientY);
     if (letter) {
@@ -103,7 +107,7 @@ export default function CourtList() {
     }
   };
 
-  const onRailPointerMove = (e: React.PointerEvent) => {
+  const onRailPointerMove = (e: ReactPointerEvent) => {
     if (!draggingRef.current) return;
     const letter = letterUnderPointer(e.clientX, e.clientY);
     if (letter && letter !== lastLetterRef.current) {
@@ -115,35 +119,32 @@ export default function CourtList() {
 
   const endDrag = () => {
     draggingRef.current = false;
-    document.body.style.userSelect = "";
+    document.body.style.userSelect = '';
     setTimeout(() => setSeekLetter(null), 250);
   };
 
   return (
     <div className="relative">
-      {/* iOS-contacts-style A-Z rail. position:fixed so it takes no flow
-          space (a sticky first child reserved its own ~330px at the top).
-          right: on narrow screens hug the edge; on wide ones align to the
-          app column (max-w-3xl = 48rem) instead of the window edge. */}
+      {/* A-Z rail: fixed, vertically centred, out of the list's flow */}
       {activeLetters.length > 0 && (
         <>
           <nav
             ref={railRef}
             className="fixed top-1/2 z-30 -translate-y-1/2 w-fit touch-none select-none"
-            style={{ right: 'calc(max(0px, 100vw - 48rem) / 2 + 0.25rem)' }}
+            style={{ right: 'calc(max(0px, 100vw - 48rem) / 2 + 0.3rem)' }}
             aria-label="字母索引"
             onPointerDown={onRailPointerDown}
             onPointerMove={onRailPointerMove}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <ul className="flex flex-col items-center rounded-full bg-white/95 py-1 shadow-md ring-1 ring-slate-200 text-[11px] font-medium text-emerald-700">
+            <ul className="flex flex-col items-center rounded-full bg-white/95 py-1 shadow-md ring-1 ring-black/5 text-[11px] font-medium text-[#0071E3]">
               {activeLetters.map((letter) => (
                 <li key={letter}>
                   <button
                     data-letter={letter}
                     onClick={() => jump(letter)}
-                    className="flex h-5 w-6 items-center justify-center rounded-full active:bg-emerald-100"
+                    className="flex h-5 w-6 items-center justify-center rounded-full active:bg-[#0071E3]/15"
                   >
                     {letter}
                   </button>
@@ -162,57 +163,64 @@ export default function CourtList() {
         </>
       )}
 
-      <div className="px-4 pt-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索球场（中/英文）或地区，如：维多利亚、Victoria、沙田"
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-emerald-500"
-        />
-        <p className="mt-2 text-[11px] text-slate-500">
-          共 {courts.length} 个康文署网球场 · 列表含未来两小时降雨与预报可信度
+      <div className="px-4 pt-3">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8E93]">
+            <Icon name="search" className="h-4 w-4" />
+          </span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="搜索球场或地区"
+            className="w-full rounded-[10px] border-0 bg-[#E9E9EB] py-2 pl-9 pr-3 text-[15px] outline-none placeholder:text-[#8E8E93] focus:ring-2 focus:ring-[#0071E3]/40"
+          />
+        </div>
+        <p className="mt-2 text-[12px] text-[#6D6D72]">
+          共 {courts.length} 个康文署网球场 · 点柱子看三数与细节
         </p>
       </div>
 
       {error && (
-        <div className="mx-4 mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+        <div className="mx-4 mt-4 rounded-[12px] bg-[#FFE5E5] p-3 text-sm text-[#C0392B]">{error}</div>
       )}
-      {loading && <div className="p-8 text-center text-sm text-slate-400">加载中…</div>}
+      {loading && <div className="p-8 text-center text-sm text-[#8E8E93]">加载中…</div>}
       {!loading && !error && courts.length === 0 && (
-        <div className="p-8 text-center text-sm text-slate-400">没有匹配的球场</div>
+        <div className="p-8 text-center text-sm text-[#8E8E93]">没有匹配的球场</div>
       )}
 
-      {/* List keeps a dedicated right gutter (pr-8): cards and sticky letter
-          headers physically end before the floating A-Z rail, so the rail can
-          never be covered regardless of z-index. Letter headers share the
-          exact same width as the court cards (no bleed in either direction). */}
-      <div className="pl-4 pr-8 pt-2">
+      {/* List keeps a dedicated right gutter (pr-7) for the A-Z rail. */}
+      <div className="pl-4 pr-7 pt-2">
         <ul>
           {activeLetters.map((letter) => (
-            <li key={letter} id={`letter-${letter}`} className="scroll-mt-20">
-              <div className="sticky top-[60px] z-10 mb-2 rounded-md bg-slate-100/95 px-1 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
+            <li key={letter} id={`letter-${letter}`} className="scroll-mt-16">
+              <div className="sticky top-[56px] z-10 -ml-4 bg-[#F2F2F7]/95 pl-4 pr-2 py-0.5 text-[13px] font-semibold text-[#6D6D72] backdrop-blur-sm">
                 {letter}
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-2 pb-1">
                 {(grouped.get(letter) ?? []).map((court) => (
                   <li key={court.id}>
                     <a
                       href={`/courts/${court.id}`}
-                      className="block rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:bg-slate-50"
+                      className="flex items-center gap-1 rounded-[14px] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.05)] active:bg-[#E5E5EA]"
                     >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-semibold">{court.name_sc}</span>
-                        <Stars
-                          accuracy={court.score?.accuracy ?? null}
-                          ok={court.score?.sufficient_samples ?? false}
-                        />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[15px] font-semibold">{court.name_sc}</span>
+                          <Stars
+                            accuracy={court.score?.accuracy ?? null}
+                            ok={court.score?.sufficient_samples ?? false}
+                          />
+                        </div>
+                        <div className="mt-0.5 truncate text-[11px] text-[#8E8E93]">
+                          {court.name_en} · {court.district_tc}
+                        </div>
+                        <div className="mt-1.5">
+                          <NowcastBadge court={court} />
+                        </div>
                       </div>
-                      <div className="mt-0.5 text-[11px] text-slate-500">
-                        {court.name_en} · {court.district_tc}
-                      </div>
-                      <div className="mt-1.5">
-                        <NowcastBadge court={court} />
-                      </div>
+                      <span className="shrink-0 text-black/25">
+                        <Icon name="chevron" className="h-4 w-4" strokeWidth={2.2} />
+                      </span>
                     </a>
                   </li>
                 ))}

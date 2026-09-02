@@ -46,9 +46,9 @@ function SourceCard({
 
 export default function ScoreCard({ scores }: { scores: CourtScores }) {
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">这个球场的预报可信吗？（近 {scores.window_days} 天）</h2>
-      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">预报可信吗？（近 {scores.window_days} 天）</h2>
+      <p className="mt-1 text-[10px] leading-relaxed text-[#8E8E93]">
         「雨量站实测」= 天文台最近测站自动核对；「球友上报」= 到场球友众包核对。
         漏报率高要防突发降雨；误报率高可以放心赌一把。样本不足 {scores.min_samples} 时显示 —。
       </p>

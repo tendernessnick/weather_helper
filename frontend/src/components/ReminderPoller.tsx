@@ -56,10 +56,10 @@ export default function ReminderPoller() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`rounded-xl border p-3 shadow-lg backdrop-blur ${
+          className={`ios-card border-l-4 p-3 shadow-lg ${
             t.risky
               ? 'border-amber-300 bg-amber-50/95'
-              : 'border-emerald-300 bg-emerald-50/95'
+              : 'border-[#34C759]'
           }`}
         >
           <div className="flex items-start justify-between gap-2">

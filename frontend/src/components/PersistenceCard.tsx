@@ -7,8 +7,8 @@ export default function PersistenceCard({ data }: { data: PersistenceData }) {
     ? null : Math.round((1 - data.p_still_wet_next_hour) * 100);
 
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">下雨了等多久？没下能顶多久？</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">下雨了等多久？没下能顶多久？</h2>
       <p className="mt-0.5 text-[10px] text-slate-400">
         基于该区十年 {data.month} 月实测（≥0.5mm 口径），回答你打球时最常问的两个问题
       </p>

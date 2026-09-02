@@ -8,6 +8,7 @@ import ScoreCard from '../components/ScoreCard';
 import ReportSheet from '../components/ReportSheet';
 import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
+import Icon from '../components/Icon';
 
 /** Plain-language verdict for the next few hours, computed from zones. */
 function VerdictBanner({ weather }: { weather: WeatherResponse }) {
@@ -24,31 +25,27 @@ function VerdictBanner({ weather }: { weather: WeatherResponse }) {
   const hhmm = worstHour ? new Date(worstHour.hour).getHours().toString().padStart(2, '0') + ':00' : '';
   const pop = worstHour ? (worstHour.corrected_pop ?? worstHour.pop) : 0;
 
-  if (worst === 'go') {
-    return (
-      <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
-        <span className="text-xl" aria-hidden>🎾</span>
-        <p className="text-xs font-semibold leading-relaxed text-emerald-800">
-          未来 {hours.length} 小时没有下雨风险，放心安排
-        </p>
-      </div>
-    );
-  }
-  if (worst === 'edge') {
-    return (
-      <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3">
-        <span className="text-xl" aria-hidden>🤔</span>
-        <p className="text-xs font-semibold leading-relaxed text-amber-800">
-          整体可以安排；{hhmm} 前后概率略高（{pop}%），属边缘时段，带把伞赌一把
-        </p>
-      </div>
-    );
-  }
+  const look = {
+    go: { tile: 'bg-[#34C759]', icon: 'ball' as const, text: 'text-[#1B7A3D]' },
+    edge: { tile: 'bg-[#FF9500]', icon: 'drizzle' as const, text: 'text-[#8A6100]' },
+    no: { tile: 'bg-[#FF3B30]', icon: 'storm' as const, text: 'text-[#B3261E]' },
+  }[worst] ?? {
+    tile: 'bg-[#34C759]', icon: 'ball' as const, text: 'text-[#1B7A3D]',
+  };
+
+  const sentence = worst === 'go'
+    ? <>未来 {hours.length} 小时没有下雨风险，放心安排</>
+    : worst === 'edge'
+      ? <>整体可以安排；{hhmm} 前后概率略高（{pop}%），属边缘时段，带把伞赌一把</>
+      : <>{hhmm} 前后有较高下雨风险（{pop}%），建议改期或换个时段</>;
+
   return (
-    <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-rose-300 bg-rose-50 p-3">
-      <span className="text-xl" aria-hidden>🌧️</span>
-      <p className="text-xs font-semibold leading-relaxed text-rose-800">
-        {hhmm} 前后有较高下雨风险（{pop}%），建议改期或换个时段
+    <div className="mx-4 mt-4 flex items-center gap-3 rounded-[16px] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-white ${look.tile}`}>
+        <Icon name={look.icon} className="h-5 w-5" />
+      </span>
+      <p className={`text-[13px] font-semibold leading-relaxed ${look.text}`}>
+        {sentence}
       </p>
     </div>
   );
@@ -88,13 +85,13 @@ export default function CourtDetail() {
   }, [id]);
 
   if (notFound) {
-    return <div className="p-8 text-center text-sm text-slate-500">球场不存在，<a href="/" className="text-sky-700 underline">返回列表</a></div>;
+    return <div className="p-8 text-center text-sm text-slate-500">球场不存在，<a href="/" className="text-[#007AFF] underline">返回列表</a></div>;
   }
   if (error) {
-    return <div className="p-8 text-center text-sm text-rose-600">{error}</div>;
+    return <div className="p-8 text-center text-sm text-[#FF3B30]">{error}</div>;
   }
   if (!court || !weather) {
-    return <div className="p-8 text-center text-sm text-slate-400">加载中…</div>;
+    return <div className="p-8 text-center text-sm text-[#8E8E93]">加载中…</div>;
   }
 
   const temp = weather.current?.temperature?.data
@@ -104,41 +101,64 @@ export default function CourtDetail() {
 
   return (
     <div>
-      <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h1 className="text-lg font-bold">{court.name_sc}</h1>
-        <p className="text-xs text-slate-500">{court.name_tc} · {court.name_en}</p>
-        <p className="mt-2 text-xs text-slate-600">
-          📍 {court.district_tc} · {court.address_tc || court.address_en}
-        </p>
-        <p className="mt-1 text-xs text-slate-600">
-          🎾 {court.court_no || '—'} · 🕐 {court.opening_hours || '—'}
-          {court.phone && <> · ☎️ {court.phone}</>}
-        </p>
+      <section className="ios-card mx-4 mt-4 p-4">
+        <h1 className="text-[21px] font-bold tracking-tight">{court.name_sc}</h1>
+        <p className="mt-0.5 text-[12px] text-[#8E8E93]">{court.name_tc} · {court.name_en}</p>
+        <div className="mt-3 space-y-1.5 text-[12px] text-[#3C3C43]/90">
+          <p className="flex items-start gap-1.5">
+            <Icon name="pin" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8E8E93]" />
+            <span>{court.district_tc} · {court.address_tc || court.address_en}</span>
+          </p>
+          <p className="flex items-start gap-1.5">
+            <Icon name="ball" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8E8E93]" />
+            <span>{court.court_no || '—'}</span>
+          </p>
+          <p className="flex items-start gap-1.5">
+            <Icon name="clock" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8E8E93]" />
+            <span>{court.opening_hours || '—'}</span>
+          </p>
+          {court.phone && (
+            <p className="flex items-center gap-1.5">
+              <Icon name="phone" className="h-3.5 w-3.5 shrink-0 text-[#8E8E93]" />
+              <span>{court.phone}</span>
+            </p>
+          )}
+        </div>
         {(temp !== undefined || humidity !== undefined) && (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-3 border-t border-black/5 pt-2.5 text-[12px] text-[#6D6D72]">
             当前市区 {temp ?? '—'}°C · 湿度 {humidity ?? '—'}%
           </p>
         )}
       </section>
 
       {weather.warnings.length > 0 && (
-        <div className="mx-4 mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
-          <p className="text-xs font-bold text-amber-800">⚠️ 生效警告</p>
-          <ul className="mt-1 list-inside list-disc text-[11px] text-amber-800">
-            {weather.warnings.map((w) => <li key={w}>{w}</li>)}
-          </ul>
+        <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#FF9500] text-white">
+            <Icon name="warn" className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-[12px] font-bold text-[#8A6100]">天文台生效警告</p>
+            <ul className="mt-0.5 list-inside list-disc text-[11px] leading-relaxed text-[#8A6100]/90">
+              {weather.warnings.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          </div>
         </div>
       )}
 
       <VerdictBanner weather={weather} />
 
       {microclimate && (
-        <div className="mx-4 mt-3 rounded-xl border border-violet-300 bg-violet-50 p-3">
-          <p className="text-xs font-bold text-violet-800">🌦️ 微气候球场</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-violet-800">
-            到场球友与最近天文台测站的观测多次分歧（球友看到雨、测站没记录）。
-            本球场请更依赖上方临近预报与球友上报，测站口径的评分仅供参考。
-          </p>
+        <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#AF52DE] text-white">
+            <Icon name="people" className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-[12px] font-bold text-[#6929A8]">微气候球场</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-[#6929A8]/90">
+              到场球友与最近天文台测站的观测多次分歧。本球场请更依赖临近预报与球友上报，
+              测站口径的评分仅供参考。
+            </p>
+          </div>
         </div>
       )}
 
@@ -152,23 +172,23 @@ export default function CourtDetail() {
         const interpretation = Math.abs(avgDelta) < 0.05
           ? '目前预报数字与实际接近，直接看官方概率即可'
           : avgDelta > 0
-            ? `预报普遍虚高约 ${Math.round(avgDelta * 100)} 个百分点：说 ${Math.round(avgDelta * 100) + 40}% 时实际约 40%，以黑点为准`
+            ? `预报普遍虚高约 ${Math.round(avgDelta * 100)} 个百分点：说 ${Math.round(avgDelta * 100) + 40}% 时实际约 40%，以校正后的黑点为准`
             : `预报普遍保守约 ${Math.round(-avgDelta * 100)} 个百分点：实际比预报说的更容易下雨，留点余量`;
         return (
-          <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-bold">预报数字准不准？</h2>
-            <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-medium leading-relaxed text-slate-700">
+          <section className="ios-card mx-4 mt-4 p-4">
+            <h2 className="text-[15px] font-bold tracking-tight">预报数字准不准？</h2>
+            <p className="mt-1.5 rounded-[10px] bg-[#F2F2F7] p-2.5 text-[12px] font-medium leading-relaxed text-[#3C3C43]">
               💡 {interpretation}
             </p>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+            <p className="mt-1.5 text-[10px] leading-relaxed text-[#8E8E93]">
               依据近 30 天「官方预报 vs 实际下雨」对照（{calibration.basis === 'court' ? '本球场专属口径' : '全港合并口径，本球场样本积累中'}，
               n={calibration.n}）。下表左边是预报说的，右边是实际发生的：
             </p>
             <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
               {calibration.mapping.map((m) => (
-                <div key={m.official_pct} className="rounded bg-slate-50 py-1.5">
-                  <div className="text-slate-400">预报{m.official_pct}%</div>
-                  <div className="text-sm font-bold text-slate-700">
+                <div key={m.official_pct} className="rounded-[8px] bg-[#F2F2F7] py-1.5">
+                  <div className="text-[#8E8E93]">预报{m.official_pct}%</div>
+                  <div className="text-sm font-bold text-slate-800">
                     实际{Math.round(m.corrected * 100)}%
                   </div>
                 </div>

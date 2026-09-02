@@ -100,8 +100,8 @@ export default function SubscribeBox({ court }: { court: Court }) {
   };
 
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">下雨风险提醒</h2>
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">下雨风险提醒</h2>
       <p className="mt-1 text-[10px] text-slate-400">
         到你设定的开打时间前 30 分钟，若该时段降水概率 ≥50% 或临近预报有雨则提醒你。
       </p>
@@ -110,12 +110,12 @@ export default function SubscribeBox({ court }: { court: Court }) {
           type="datetime-local"
           value={playAt}
           onChange={(e) => setPlayAt(e.target.value)}
-          className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+          className="rounded-[10px] border-0 bg-[#F2F2F7] px-2.5 py-2 text-xs outline-none focus:ring-2 focus:ring-[#0071E3]/40"
         />
         <button
           onClick={subscribe}
           disabled={busy}
-          className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white shadow disabled:bg-slate-300"
+          className="rounded-full bg-[#007AFF] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
         >
           {busy ? '订阅中…' : '开打前30分钟提醒我'}
         </button>

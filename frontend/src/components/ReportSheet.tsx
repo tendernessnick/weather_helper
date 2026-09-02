@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
+import Icon from './Icon';
 import type { Court } from '../types';
 
 const INTENSITIES = [
-  { key: 'none', label: '没下雨', emoji: '🌤️' },
-  { key: 'light', label: '小雨', emoji: '🌦️' },
-  { key: 'moderate', label: '中雨', emoji: '🌧️' },
-  { key: 'heavy', label: '大雨', emoji: '⛈️' },
+  { key: 'none', label: '没下雨', icon: 'sun' },
+  { key: 'light', label: '小雨', icon: 'drizzle' },
+  { key: 'moderate', label: '中雨', icon: 'rain' },
+  { key: 'heavy', label: '大雨', icon: 'storm' },
 ] as const;
 
 function getPosition(): Promise<GeolocationPosition> {
@@ -80,10 +81,10 @@ export default function ReportSheet({ court }: { court: Court }) {
   };
 
   return (
-    <section className="mx-4 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+    <section className="ios-card mx-4 mt-4 p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-emerald-900">我就在这个球场</h2>
+          <h2 className="text-[15px] font-bold tracking-tight">我就在这个球场</h2>
           <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">
             只有在球场 500 米内才能上报；每次上报间隔 2 小时。
             {cooldown > 0 && (
@@ -96,7 +97,7 @@ export default function ReportSheet({ court }: { court: Court }) {
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={cooldown > 0}
-          className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow disabled:bg-slate-300"
+          className="shrink-0 rounded-full bg-[#34C759] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
         >
           {cooldown > 0 ? '冷却中' : '上报实况'}
         </button>
@@ -109,9 +110,9 @@ export default function ReportSheet({ court }: { court: Court }) {
               key={item.key}
               onClick={() => submit(item.key)}
               disabled={busy}
-              className="flex flex-col items-center rounded-lg bg-white px-1 py-2 text-[11px] shadow-sm active:bg-emerald-100 disabled:opacity-50"
+              className="flex flex-col items-center rounded-[12px] bg-[#F2F2F7] px-1 py-2.5 text-[11px] active:bg-[#E5F1FB] disabled:opacity-50"
             >
-              <span className="text-xl" aria-hidden>{item.emoji}</span>
+              <Icon name={item.icon} className="h-5 w-5" strokeWidth={1.6} />
               {item.label}
             </button>
           ))}
