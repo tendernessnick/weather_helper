@@ -70,7 +70,10 @@ JOBS = [
     ("purge", _job_purge, 24 * 3600),
     # monthly climatology top-up (ERA5 archive lags a few days; daily tries
     # would mostly 404 on the incomplete tail, monthly is plenty)
-    ("climate_update", climate.update_recent_months, 30 * 24 * 3600),
+    # daily climatology top-up: idempotent (per-court progress keys mean only
+    # missing months are fetched) and heals courts skipped by archive 429s
+    # within a day instead of waiting a month
+    ("climate_update", climate.update_recent_months, 24 * 3600),
 ]
 
 
