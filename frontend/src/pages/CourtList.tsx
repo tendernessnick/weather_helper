@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { CourtListItem } from '../types';
 
@@ -72,12 +72,95 @@ export default function CourtList() {
 
   const activeLetters = LETTERS.filter((l) => grouped.has(l));
 
-  const jump = (letter: string) => {
-    document.getElementById(`letter-${letter}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const jump = (letter: string, smooth = true) => {
+    document
+      .getElementById(`letter-${letter}`)
+      ?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  };
+
+  // --- A-Z rail: tap a letter, or press-and-drag for fast seeking ------------
+  const railRef = useRef<HTMLElement>(null);
+  const draggingRef = useRef(false);
+  const lastLetterRef = useRef<string | null>(null);
+  const [seekLetter, setSeekLetter] = useState<string | null>(null);
+
+  const letterUnderPointer = (x: number, y: number): string | null => {
+    const el = document.elementFromPoint(x, y)?.closest('button[data-letter]');
+    return (el as HTMLElement | null)?.dataset.letter ?? null;
+  };
+
+  const onRailPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault(); // no native text selection while seeking
+    draggingRef.current = true;
+    lastLetterRef.current = null;
+    document.body.style.userSelect = "none";
+    railRef.current?.setPointerCapture(e.pointerId);
+    const letter = letterUnderPointer(e.clientX, e.clientY);
+    if (letter) {
+      lastLetterRef.current = letter;
+      setSeekLetter(letter);
+      jump(letter, false);
+    }
+  };
+
+  const onRailPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const letter = letterUnderPointer(e.clientX, e.clientY);
+    if (letter && letter !== lastLetterRef.current) {
+      lastLetterRef.current = letter;
+      setSeekLetter(letter);
+      jump(letter, false);
+    }
+  };
+
+  const endDrag = () => {
+    draggingRef.current = false;
+    document.body.style.userSelect = "";
+    setTimeout(() => setSeekLetter(null), 250);
   };
 
   return (
     <div className="relative">
+      {/* iOS-contacts-style A-Z rail. First child so its sticky anchor is the
+          top of the wrapper: it floats at the right edge of the app column,
+          vertically centred in the viewport, from the very first scroll.
+          Tap a letter, or press-and-drag to seek (no precision needed). */}
+      {activeLetters.length > 0 && (
+        <>
+          <nav
+            ref={railRef}
+            className="sticky top-1/2 z-30 -translate-y-1/2 ml-auto mr-1 w-fit touch-none select-none"
+            aria-label="字母索引"
+            onPointerDown={onRailPointerDown}
+            onPointerMove={onRailPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
+            <ul className="flex flex-col items-center rounded-full bg-white/95 py-1 shadow-md ring-1 ring-slate-200 text-[11px] font-medium text-emerald-700">
+              {activeLetters.map((letter) => (
+                <li key={letter}>
+                  <button
+                    data-letter={letter}
+                    onClick={() => jump(letter)}
+                    className="flex h-5 w-6 items-center justify-center rounded-full active:bg-emerald-100"
+                  >
+                    {letter}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {seekLetter && (
+            <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900/80 text-3xl font-bold text-white">
+                {seekLetter}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       <div className="px-4 pt-4">
         <input
           value={search}
@@ -137,25 +220,6 @@ export default function CourtList() {
           ))}
         </ul>
       </div>
-
-      {/* iOS-contacts-style A-Z rail: floats at the right edge of the app
-          column, vertically centred in the viewport; independent of scroll. */}
-      {activeLetters.length > 0 && (
-        <nav
-          className="sticky top-1/2 z-30 -translate-y-1/2 ml-auto mr-1 w-fit"
-          aria-label="字母索引"
-        >
-          <ul className="flex flex-col items-center rounded-full bg-white/95 py-1.5 shadow-md ring-1 ring-slate-200 text-[9px] leading-[1.25] text-emerald-700">
-            {activeLetters.map((letter) => (
-              <li key={letter}>
-                <button onClick={() => jump(letter)} className="px-1 py-px">
-                  {letter}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
     </div>
   );
 }
