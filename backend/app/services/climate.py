@@ -28,6 +28,7 @@ ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 RAIN_THRESHOLD = 0.5
 SURVIVAL_LENGTHS = (1, 2, 3, 4)  # booking lengths in hours
 BACKFILL_START = (datetime.now().year - 10, 1)  # (year, month): 10 years back
+FETCH_PAUSE = 1.2  # seconds between archive requests (the archive API 429s fast)
 
 
 def _last_key(court_id: str) -> str:
@@ -65,19 +66,27 @@ def _month_bounds(year: int, month: int) -> tuple[str, str]:
 
 
 def _fetch_period(client: httpx.Client, lat: float, lon: float,
-                  start_date: str, end_date: str) -> dict | None:
-    resp = client.get(ARCHIVE_URL, params={
-        "latitude": f"{lat:.4f}",
-        "longitude": f"{lon:.4f}",
-        "start_date": start_date,
-        "end_date": end_date,
-        "hourly": "precipitation",
-        "timezone": "Asia/Hong_Kong",
-    })
-    if resp.status_code == 400:
-        return None  # period not available yet (archive tail lag)
-    resp.raise_for_status()
-    return resp.json().get("hourly", {})
+                  start_date: str, end_date: str,
+                  retries: int = 5) -> dict | None:
+    for attempt in range(retries):
+        resp = client.get(ARCHIVE_URL, params={
+            "latitude": f"{lat:.4f}",
+            "longitude": f"{lon:.4f}",
+            "start_date": start_date,
+            "end_date": end_date,
+            "hourly": "precipitation",
+            "timezone": "Asia/Hong_Kong",
+        })
+        if resp.status_code == 400:
+            return None  # period not available yet (archive tail lag)
+        if resp.status_code == 429:
+            wait = 15 * (attempt + 1)  # rate limited: back off and retry
+            logger.warning("archive 429, backing off %ss (%s~%s)", wait, start_date, end_date)
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json().get("hourly", {})
+    return None  # still throttled after retries; the chunk retries next pass
 
 
 class Aggregates:
@@ -189,7 +198,7 @@ def _ingest_months(db: Session, court: Court, months: list[tuple[int, int]],
                 break
             times_all.extend(hourly.get("time", []))
             mms_all.extend(hourly.get("precipitation", []))
-            time.sleep(0.35)
+            time.sleep(FETCH_PAUSE)
         if not ok or not times_all:
             break
         agg.feed(times_all, mms_all)
@@ -226,7 +235,10 @@ def backfill_all(db: Session, limit: int | None = None) -> int:
         courts = courts[:limit]
     total = 0
     for court in courts:
-        total += backfill_court(db, court)
+        try:
+            total += backfill_court(db, court)
+        except Exception:  # noqa: BLE001 - one court must not kill the pass
+            logger.exception("climatology failed for %s; continuing", court.name_en)
     logger.info("climatology backfill pass: %d court-months ingested", total)
     return total
 
