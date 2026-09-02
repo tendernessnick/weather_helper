@@ -117,6 +117,11 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 首次启动会自动导入 54 个球场并抓取全部天气数据（约 1 分钟内出数据），可信度评分从零开始积累。
 注意：不挂 Volume 的话每次重新部署数据库都会清空、评分重新积累。
 
+**验证数据有没有丢**：访问 `https://你的域名/api/health`，看 `db` 字段——
+- `db_file_created_at` 是数据库文件的创建时间。挂了卷：它停留在首次部署时刻，跨多次部署不变；没挂卷：每次部署后都重置为刚才的部署时间。
+- 各行数（`observations`、`forecast_snapshots`、`climatology_cells` 应为 15552 等）随时间增长；若每次部署后归零重来，就是没挂卷。
+- 最快的人工确认：Railway 面板 → 服务 → **Settings → Volumes**，看是否有挂载在 `/data` 的卷。
+
 本地没有 Docker 也能部署——构建全部在 Railway 云端完成。
 
 ## API 一览

@@ -3,11 +3,13 @@ import logging
 import os
 import threading
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from .api import best, checkins, courts, map as map_api, reports, stats, subscriptions
 from .config import settings
@@ -21,6 +23,45 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 scheduler = create_scheduler()
+
+
+def db_state() -> dict:
+    """Row counts + SQLite file birth time: makes volume loss visible.
+
+    On Railway, a redeploy recreates the container filesystem unless a volume
+    is mounted at /data — in that case db_file_created_at resets to the deploy
+    time and all counts restart from zero. Reads only; never raises.
+    """
+    out: dict = {"database_url": settings.database_url}
+    try:
+        path = settings.database_url.split("sqlite:///", 1)[-1]
+        if path and os.path.exists(path):
+            st = os.stat(path)
+            out["db_file"] = path
+            out["db_file_created_at"] = datetime.fromtimestamp(
+                st.st_ctime).isoformat(timespec="seconds")
+            out["db_size_mb"] = round(st.st_size / 1e6, 1)
+        with SessionLocal() as db:
+            for label, table in (
+                ("courts", "courts"),
+                ("forecast_snapshots", "forecast_snapshots"),
+                ("observations", "observations"),
+                ("nowcast_snapshots", "nowcast_snapshots"),
+                ("climatology_cells", "climatology"),
+                ("user_reports_total", "user_reports"),
+                ("checkins", "checkins"),
+                ("push_subscriptions", "push_subscriptions"),
+            ):
+                out[label] = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+            out["accepted_user_reports"] = db.execute(
+                text("SELECT COUNT(*) FROM user_reports WHERE status='accepted'")).scalar()
+            latest = db.execute(
+                text("SELECT MAX(observed_hour) FROM observations")).scalar()
+            out["latest_observation"] = str(latest) if latest else None
+    except Exception:  # noqa: BLE001 - diagnostics must never break health
+        logger.exception("db_state failed")
+        out["error"] = "unavailable"
+    return out
 
 
 def _first_boot_ingest() -> None:
@@ -38,6 +79,7 @@ async def lifespan(app: FastAPI):
     init_db()
     with SessionLocal() as db:
         ensure_courts(db)
+    logger.info("startup db state: %s", db_state())
     scheduler.start()
     threading.Thread(target=_first_boot_ingest, daemon=True).start()
     logger.info("startup complete")
@@ -66,7 +108,7 @@ app.include_router(checkins.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "db": db_state()}
 
 
 # Serve the built frontend when present (single-service deployment).

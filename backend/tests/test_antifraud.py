@@ -92,11 +92,15 @@ def test_daily_limit(db):
     at = hk(datetime.now(HK_TZ))
     # The cap is per device: 10 accepted reports earlier today from the same
     # device (different courts, near-identical spots so the speed check passes).
+    # Seeded within today's calendar day even when the test runs just after
+    # midnight ("60 minutes ago" would land on yesterday and dodge the filter).
+    day_start = at.replace(hour=0, minute=0, second=0, microsecond=0)
+    base = max(at - timedelta(minutes=10), day_start + timedelta(seconds=1))
     for i in range(10):
         db.add(UserReport(
             court_id=f"c{i}", device_id="d-1", was_raining=False, intensity="none",
             lat=22.28 + i * 1e-5, lon=114.19, status="accepted",
-            created_at=at - timedelta(minutes=60 + i),
+            created_at=base + timedelta(seconds=i),
         ))
     db.commit()
     reason = check_report(db, COURT, "d-1", 22.2800, 114.1900, None, now=at)
