@@ -26,3 +26,12 @@ body {
   font-size: 13px;
   font-weight: 400;
 }
+
+/* full-screen sheet slide-up (iOS sheet easing) */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-up {
+  animation: sheet-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
