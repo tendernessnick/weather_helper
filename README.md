@@ -91,13 +91,33 @@ cd backend && uv run pytest -q
 
 ## 部署
 
+通用方式（任意 Docker 平台 / VPS）：
+
 ```bash
 docker build -t weather-helper .
-docker run -p 8000:8000 -v wh_data:/app/backend weather-helper
+docker run -p 8000:8000 -v wh_data:/data weather-helper
 ```
 
-任意支持 Docker 的长驻服务（Fly.io / Railway / VPS）均可；注意 HTTPS 是 PWA 安装和
-Web Push 的前置条件，建议置于反向代理或平台 TLS 之后。
+### 部署到 Railway
+
+1. 推送代码到 GitHub（仓库根目录含 `Dockerfile` 与 `railway.toml`，Railway 会自动识别）
+2. [railway.com](https://railway.com) 用 GitHub 登录 → **New Project → Deploy from GitHub repo** → 选本仓库
+3. 构建完成后，进入服务 → **Variables** 添加：
+
+   | 变量 | 值 |
+   |---|---|
+   | `PORT` | `8000` |
+   | `DATABASE_URL` | `sqlite:////data/weather.db` |
+   | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `backend/.env` 里的两个值（或 `npx web-push generate-vapid-keys` 重新生成） |
+   | `VAPID_SUBJECT` | `mailto:你的邮箱` |
+
+4. 服务右上角 **… → Attach Volume** → 挂载路径填 `/data`（保存 SQLite 数据库，重部署不丢数据）
+5. **Settings → Networking → Generate Domain** → 端口填 `8000` → 得到 `https://xxx.up.railway.app`（自动 HTTPS，PWA 安装与 Web Push 可用）
+
+首次启动会自动导入 54 个球场并抓取全部天气数据（约 1 分钟内出数据），可信度评分从零开始积累。
+注意：不挂 Volume 的话每次重新部署数据库都会清空、评分重新积累。
+
+本地没有 Docker 也能部署——构建全部在 Railway 云端完成。
 
 ## API 一览
 

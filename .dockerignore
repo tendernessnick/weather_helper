@@ -1,0 +1,21 @@
+# never ship local junk into the build context / image
+.git
+.zcode
+.idea
+.vscode
+
+# python
+backend/.venv
+__pycache__
+*.pyc
+.pytest_cache
+backend/weather.db
+backend/weather.db-journal
+backend/.env
+
+# node / frontend (rebuilt inside the image)
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/dev-dist
+frontend/tsconfig.tsbuildinfo
