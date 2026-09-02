@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { HourlyItem } from '../types';
+import { comfortNote, useLang, WEEKDAYS } from '../i18n';
+import type { TKey } from '../i18n';
 
 function popColor(pop: number): string {
   if (pop >= 70) return 'bg-sky-600';
@@ -14,17 +16,12 @@ const ZONE_BG: Record<string, string> = {
   edge: 'bg-amber-50',
   no: 'bg-rose-50',
 };
-const ZONE_LABEL: Record<string, string> = {
-  go: '放心',
-  edge: '边缘',
-  no: '别赌',
-};
+const ZONE_KEY: Record<string, TKey> = { go: 'hourly.legendGo', edge: 'hourly.legendEdge', no: 'hourly.legendNo' };
 const ZONE_CHIP: Record<string, string> = {
   go: 'bg-emerald-100 text-emerald-800',
   edge: 'bg-amber-100 text-amber-800',
   no: 'bg-rose-100 text-rose-800',
 };
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 function hourLabel(iso: string): string {
   const d = new Date(iso);
@@ -39,31 +36,32 @@ const COMFORT_CHIP: Record<string, string> = {
 };
 
 /** Plain-language conclusion from the three numbers of one hour. */
-function verdictFor(item: HourlyItem): string {
+function verdictFor(t: ReturnType<typeof useLang>['t'], item: HourlyItem): string {
   const official = item.pop;
   const corrected = item.corrected_pop ?? item.pop;
   const clim = item.climatology_pop;
 
   if ((item.zone ?? 'go') === 'go' && corrected < 30) {
     const tail = clim !== null && clim !== undefined && clim > corrected + 15
-      ? `，不过历史上这个时间有 ${clim}% 在下雨，别完全按惯例排除`
+      ? t('hourly.vGoTail', { c: clim })
       : '';
-    return `三个数都低：这一小时可以放心${tail}`;
+    return t('hourly.vGo') + tail;
   }
   if (clim !== null && clim !== undefined && clim > corrected + 20
       && official >= 50 && corrected >= 50) {
-    return `预报和校正后都偏高（${official}%→${corrected}%），但历史上这个时间只有 ${clim}% 在下雨——更像短期天气过程，过去就过去了`;
+    return t('hourly.vClimWin', { o: official, c: corrected, cl: clim });
   }
   if (corrected >= 60) {
-    return `校正后 ${corrected}%，下雨是大概率事件，这个时段不建议硬打`;
+    return t('hourly.vWet', { c: corrected });
   }
   if (corrected >= 30) {
-    return `校正后 ${corrected}%，属于五五开的边缘时段：能改就改，要打就盯紧临近预报`;
+    return t('hourly.vEdge', { c: corrected });
   }
-  return `官方 ${official}%、校正后 ${corrected}%，风险不高`;
+  return t('hourly.vLow', { o: official, c: corrected });
 }
 
 export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
+  const { t, lang } = useLang();
   const items = useMemo(() => hourly.slice(0, 48), [hourly]);
   const hasStats = items.some((i) => i.corrected_pop !== undefined);
 
@@ -90,7 +88,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
 
   const sel = items.find((it) => it.hour === selected) ?? null;
   const selDate = sel ? new Date(sel.hour) : null;
-  const weekday = selDate ? WEEKDAYS[selDate.getDay()] : '';
+  const weekday = selDate ? WEEKDAYS[lang][selDate.getDay()] : '';
   const selLabel = selDate
     ? `${weekday} ${selDate.getHours().toString().padStart(2, '0')}:00–${(selDate.getHours() + 1).toString().padStart(2, '0')}:00`
     : '';
@@ -98,11 +96,11 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-bold">逐小时降水概率（未来 48 小时）</h2>
-        <span className="text-[10px] text-slate-400">Open-Meteo 集合预报</span>
+        <h2 className="text-sm font-bold">{t('hourly.title')}</h2>
+        <span className="text-[10px] text-slate-400">{t('hourly.source')}</span>
       </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-xs text-slate-400">暂无逐小时预报数据，请稍后刷新</p>
+        <p className="mt-3 text-xs text-slate-400">{t('hourly.empty')}</p>
       ) : (
         <>
           <div className="mt-3 overflow-x-auto pb-1 pr-1">
@@ -120,11 +118,11 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
                     className={`flex w-[30px] flex-col items-center rounded-lg px-0.5 pt-0.5 ${ZONE_BG[item.zone ?? ''] ?? ''} ${isSel ? 'ring-2 ring-slate-700' : ''}`}
                     title={[
                       `${d.getMonth() + 1}/${d.getDate()} ${label}:00`,
-                      `官方概率 ${item.pop}%`,
-                      item.corrected_pop !== undefined ? `校正后 ${item.corrected_pop}%` : null,
+                      t('hourly.tipOfficial', { p: item.pop }),
+                      item.corrected_pop !== undefined ? t('hourly.tipCorrected', { p: item.corrected_pop }) : null,
                       item.climatology_pop !== null && item.climatology_pop !== undefined
-                        ? `十年同期 ${item.climatology_pop}%` : null,
-                      item.zone ? `建议：${ZONE_LABEL[item.zone]}` : null,
+                        ? t('hourly.tipClim', { p: item.climatology_pop }) : null,
+                      item.zone ? t('hourly.tipZone', { z: t(ZONE_KEY[item.zone]) }) : null,
                     ].filter(Boolean).join('\n')}
                   >
                     <span className="text-[9px] text-slate-500">{item.pop}%</span>
@@ -155,56 +153,56 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">{selLabel}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${ZONE_CHIP[sel.zone ?? 'go']}`}>
-                  建议：{ZONE_LABEL[sel.zone ?? 'go']}
+                  {t('hourly.suggest', { z: t(ZONE_KEY[sel.zone ?? 'go']) })}
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">官方预报</div>
+                  <div className="text-[9px] text-slate-400">{t('hourly.official')}</div>
                   <div className="text-base font-bold text-sky-700">{sel.pop}%</div>
                 </div>
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">按实测校正后</div>
+                  <div className="text-[9px] text-slate-400">{t('hourly.corrected')}</div>
                   <div className="text-base font-bold text-slate-700">
                     {(sel.corrected_pop ?? sel.pop)}%
                   </div>
                 </div>
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">十年同期</div>
+                  <div className="text-[9px] text-slate-400">{t('hourly.clim')}</div>
                   <div className="text-base font-bold text-slate-500">
                     {sel.climatology_pop ?? '—'}%
                   </div>
                 </div>
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
-                💡 {verdictFor(sel)}
+                💡 {verdictFor(t, sel)}
               </p>
               {sel.comfort && sel.comfort.level && (
                 <p className="mt-1.5 flex items-center gap-1.5 text-[11px]">
                   <span className={`rounded-full px-2 py-0.5 font-semibold ${COMFORT_CHIP[sel.comfort.level]}`}>
-                    打球舒适度
+                    {t('hourly.comfort')}
                   </span>
-                  <span className="text-slate-600">{sel.comfort.note}</span>
+                  <span className="text-slate-600">{comfortNote(t, sel.comfort.level, sel.apparent_temp, sel.wind_kmh)}</span>
                 </p>
               )}
               <p className="mt-1 text-[9px] text-slate-400">
-                雨量 {sel.mm.toFixed(1)}mm · 风 {sel.wind_kmh.toFixed(0)}km/h
-                {sel.apparent_temp != null && <> · 体感 {sel.apparent_temp.toFixed(0)}°C</>}
-                {sel.humidity != null && <> · 湿度 {sel.humidity.toFixed(0)}%</>}
-                {hasStats ? '' : ' · 校正数据积累中，黑点暂等于官方值'}
+                {t('hourly.footer', { mm: sel.mm.toFixed(1), w: sel.wind_kmh.toFixed(0) })}
+                {sel.apparent_temp != null && t('hourly.atemp', { t: sel.apparent_temp.toFixed(0) })}
+                {sel.humidity != null && t('hourly.hum', { h: sel.humidity.toFixed(0) })}
+                {hasStats ? '' : t('hourly.noStats')}
               </p>
             </div>
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-500" />官方预报</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-700" />按实测校正后</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-50 ring-1 ring-emerald-200" />放心</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-50 ring-1 ring-amber-200" />边缘</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-50 ring-1 ring-rose-200" />别赌</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-500" />{t('hourly.official')}</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-700" />{t('hourly.corrected')}</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-50 ring-1 ring-emerald-200" />{t('hourly.legendGo')}</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-50 ring-1 ring-amber-200" />{t('hourly.legendEdge')}</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-50 ring-1 ring-rose-200" />{t('hourly.legendNo')}</span>
           </div>
           <p className="mt-1 text-[10px] text-slate-400">
-            看颜色拿结论，点柱子看三个数和细节。黑点比蓝条低 = 预报历史上偏乐观，按黑点算。
+            {t('hourly.tip')}
           </p>
         </>
       )}

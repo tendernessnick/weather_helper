@@ -113,6 +113,8 @@ def check_reminders(
         reminders.append({
             "court_id": court.id,
             "court_name": court.name_sc,
+            "court_name_tc": court.name_tc,
+            "court_name_en": court.name_en,
             "play_hhmm": sub.play_at.strftime("%H:%M"),
             "risky": risky,
             "pop": pop,

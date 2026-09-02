@@ -127,7 +127,10 @@ export interface RecentReport {
 export interface CourtRankSimple {
   court_id: string;
   name_sc: string;
+  name_tc?: string;
+  name_en?: string;
   district_tc: string;
+  district_en?: string;
   lat: number;
   lon: number;
   pop: number;
@@ -145,6 +148,8 @@ export interface BestResponse {
 export interface CheckinSession {
   played_at: string;
   court_name: string;
+  court_name_tc?: string;
+  court_name_en?: string;
   duration_hours: number;
   rain_hours: number;
   max_mm: number;
@@ -164,6 +169,8 @@ export interface CheckinReport {
 export interface Reminder {
   court_id: string;
   court_name: string;
+  court_name_tc?: string;
+  court_name_en?: string;
   play_hhmm: string;
   risky: boolean;
   pop: number | null;
@@ -228,7 +235,8 @@ export interface HourProfileRow {
 export interface CourtRankRow {
   court_id: string;
   name_sc: string;
-  district_tc: string;
+  name_tc?: string;
+  name_en?: string;
   n: number;
   raw_accuracy: number;
   shrunk_accuracy: number;

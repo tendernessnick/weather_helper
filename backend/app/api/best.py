@@ -30,7 +30,10 @@ def _rank_hour(db: Session, hour: datetime) -> list[dict]:
         out.append({
             "court_id": court_id,
             "name_sc": court.name_sc,
+            "name_tc": court.name_tc,
+            "name_en": court.name_en,
             "district_tc": court.district_tc,
+            "district_en": court.district_en,
             "lat": court.lat,
             "lon": court.lon,
             "pop": pop,

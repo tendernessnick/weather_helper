@@ -272,7 +272,8 @@ def courts_ranking(db: Session) -> dict:
         rows.append({
             "court_id": court_id,
             "name_sc": court.name_sc if court else court_id,
-            "district_tc": court.district_tc if court else "",
+            "name_tc": court.name_tc if court else "",
+            "name_en": court.name_en if court else "",
             "n": n,
             "raw_accuracy": round(raw, 3),
             "shrunk_accuracy": round(shrunk, 3),

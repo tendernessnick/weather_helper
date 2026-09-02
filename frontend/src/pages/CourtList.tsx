@@ -3,16 +3,18 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
 import type { CourtListItem } from '../types';
 import Icon from '../components/Icon';
+import { courtName, districtName, useLang } from '../i18n';
 
 const LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 export function Stars({ accuracy, ok }: { accuracy: number | null; ok: boolean }) {
+  const { t } = useLang();
   if (!ok || accuracy === null) {
-    return <span className="text-[12px] text-[#8E8E93]">积累中</span>;
+    return <span className="text-[12px] text-[#8E8E93]">{t('common.building')}</span>;
   }
   const stars = Math.max(1, Math.round(accuracy * 5));
   return (
-    <span className="whitespace-nowrap text-[13px]" title={`预报准确率 ${Math.round(accuracy * 100)}%`}>
+    <span className="whitespace-nowrap text-[13px]" title={t('list.starsTitle', { p: Math.round(accuracy * 100) })}>
       <span className="text-[#F5A623]">{'★'.repeat(stars)}</span>
       <span className="text-black/15">{'★'.repeat(5 - stars)}</span>
     </span>
@@ -20,24 +22,26 @@ export function Stars({ accuracy, ok }: { accuracy: number | null; ok: boolean }
 }
 
 function NowcastBadge({ court }: { court: CourtListItem }) {
+  const { t } = useLang();
   if (!court.nowcast) {
-    return <span className="text-[12px] text-[#8E8E93]">临近预报加载中</span>;
+    return <span className="text-[12px] text-[#8E8E93]">{t('list.nowcastLoading')}</span>;
   }
   const { rain, max_mm } = court.nowcast;
   return rain ? (
     <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F1FB] px-2 py-0.5 text-[11px] font-medium text-[#0071E3]">
       <Icon name="rain" className="h-3 w-3" />
-      未来2小时有雨 · ≤{max_mm.toFixed(1)}mm
+      {t('list.rainBadge', { mm: max_mm.toFixed(1) })}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 rounded-full bg-[#E8F8ED] px-2 py-0.5 text-[11px] font-medium text-[#1B7A3D]">
       <Icon name="sun" className="h-3 w-3" />
-      未来2小时无雨
+      {t('list.dryBadge')}
     </span>
   );
 }
 
 export default function CourtList() {
+  const { t, lang } = useLang();
   const [search, setSearch] = useState('');
   const [courts, setCourts] = useState<CourtListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +136,7 @@ export default function CourtList() {
             ref={railRef}
             className="fixed top-1/2 z-30 -translate-y-1/2 w-fit touch-none select-none"
             style={{ right: 'calc(max(0px, 100vw - 48rem) / 2 + 0.3rem)' }}
-            aria-label="字母索引"
+            aria-label={t('list.railAria')}
             onPointerDown={onRailPointerDown}
             onPointerMove={onRailPointerMove}
             onPointerUp={endDrag}
@@ -171,21 +175,21 @@ export default function CourtList() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索球场或地区"
+            placeholder={t('list.search')}
             className="w-full rounded-[10px] border-0 bg-[#E9E9EB] py-2 pl-9 pr-3 text-[15px] outline-none placeholder:text-[#8E8E93] focus:ring-2 focus:ring-[#0071E3]/40"
           />
         </div>
         <p className="mt-2 text-[12px] text-[#6D6D72]">
-          共 {courts.length} 个康文署网球场 · 点柱子看三数与细节
+          {t('list.count', { n: courts.length })}
         </p>
       </div>
 
       {error && (
         <div className="mx-4 mt-4 rounded-[12px] bg-[#FFE5E5] p-3 text-sm text-[#C0392B]">{error}</div>
       )}
-      {loading && <div className="p-8 text-center text-sm text-[#8E8E93]">加载中…</div>}
+      {loading && <div className="p-8 text-center text-sm text-[#8E8E93]">{t('common.loading')}</div>}
       {!loading && !error && courts.length === 0 && (
-        <div className="p-8 text-center text-sm text-[#8E8E93]">没有匹配的球场</div>
+        <div className="p-8 text-center text-sm text-[#8E8E93]">{t('list.noMatch')}</div>
       )}
 
       {/* List keeps a dedicated right gutter (pr-7) for the A-Z rail. */}
@@ -205,14 +209,14 @@ export default function CourtList() {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-[15px] font-semibold">{court.name_sc}</span>
+                          <span className="truncate text-[15px] font-semibold">{courtName(court, lang)}</span>
                           <Stars
                             accuracy={court.score?.accuracy ?? null}
                             ok={court.score?.sufficient_samples ?? false}
                           />
                         </div>
                         <div className="mt-0.5 truncate text-[11px] text-[#8E8E93]">
-                          {court.name_en} · {court.district_tc}
+                          {court.name_en} · {districtName(court.district_tc, court.district_en, lang)}
                         </div>
                         <div className="mt-1.5">
                           <NowcastBadge court={court} />

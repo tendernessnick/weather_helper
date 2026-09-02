@@ -111,6 +111,8 @@ def my_checkins(
         {
             "court_id": r.court_id,
             "court_name": courts[r.court_id].name_sc if r.court_id in courts else r.court_id,
+            "court_name_tc": courts[r.court_id].name_tc if r.court_id in courts else "",
+            "court_name_en": courts[r.court_id].name_en if r.court_id in courts else "",
             "played_at": r.played_at.isoformat(),
             "duration_hours": r.duration_hours,
         } for r in rows
@@ -134,6 +136,8 @@ def my_report(
         sessions.append({
             "played_at": r.played_at.isoformat(),
             "court_name": court.name_sc if court else r.court_id,
+            "court_name_tc": court.name_tc if court else "",
+            "court_name_en": court.name_en if court else "",
             "duration_hours": r.duration_hours,
             **story,
         })

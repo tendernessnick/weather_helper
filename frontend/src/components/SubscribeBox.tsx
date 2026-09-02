@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useLang } from '../i18n';
 import type { Court } from '../types';
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -30,6 +31,7 @@ async function requestNotificationPermission(): Promise<NotificationPermission> 
 }
 
 export default function SubscribeBox({ court }: { court: Court }) {
+  const { t } = useLang();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [playAt, setPlayAt] = useState(defaultPlayAt());
   const [message, setMessage] = useState<string | null>(null);
@@ -49,10 +51,10 @@ export default function SubscribeBox({ court }: { court: Court }) {
       if (pushEnabled && 'serviceWorker' in navigator && 'PushManager' in window) {
         try {
           if (await requestNotificationPermission() !== 'granted') {
-            throw new Error('未获得通知权限');
+            throw new Error(t('sub.noPerm'));
           }
           const { public_key } = await api.pushPublicKey();
-          if (!public_key) throw new Error('服务器未配置推送');
+          if (!public_key) throw new Error(t('sub.noServer'));
           const reg = await navigator.serviceWorker.ready;
           const sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
@@ -78,7 +80,7 @@ export default function SubscribeBox({ court }: { court: Court }) {
       }
 
       if (pushOk) {
-        setMessage('已订阅推送提醒：开打前 30 分钟若有下雨风险会通知你（即使页面已关闭）。');
+        setMessage(t('sub.pushOk'));
       } else {
         // System notification still improves the polling experience when the
         // tab is in the background; denial just means in-page banners only.
@@ -88,7 +90,7 @@ export default function SubscribeBox({ court }: { court: Court }) {
           play_at: playAt,
           hours_before: 0.5,
         });
-        setMessage('当前环境连不上推送服务，已改用页面内提醒：到点前请保持本站页面打开，会弹出系统通知或页内横幅。');
+        setMessage(t('sub.poll'));
       }
       setTone('ok');
     } catch (err) {
@@ -101,9 +103,9 @@ export default function SubscribeBox({ court }: { court: Court }) {
 
   return (
     <section className="ios-card mx-4 mt-4 p-4">
-      <h2 className="text-[15px] font-bold tracking-tight">下雨风险提醒</h2>
+      <h2 className="text-[15px] font-bold tracking-tight">{t('sub.title')}</h2>
       <p className="mt-1 text-[10px] text-slate-400">
-        到你设定的开打时间前 30 分钟，若该时段降水概率 ≥50% 或临近预报有雨则提醒你。
+        {t('sub.note')}
       </p>
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -117,7 +119,7 @@ export default function SubscribeBox({ court }: { court: Court }) {
           disabled={busy}
           className="rounded-full bg-[#007AFF] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
         >
-          {busy ? '订阅中…' : '开打前30分钟提醒我'}
+          {busy ? t('sub.busy') : t('sub.cta')}
         </button>
       </div>
       {message && (

@@ -1,5 +1,6 @@
 import type { NowcastStep } from '../types';
 import Icon from './Icon';
+import { useLang } from '../i18n';
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);
@@ -9,16 +10,17 @@ function fmtTime(iso: string): string {
 export default function NowcastStrip({
   steps, fetchedAt,
 }: { steps: NowcastStep[]; fetchedAt: string | null }) {
+  const { t } = useLang();
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[15px] font-bold tracking-tight">未来 2 小时降雨</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">{t('now.title')}</h2>
         <span className="text-[10px] text-[#8E8E93]">
-          {fetchedAt ? `更新于 ${fmtTime(fetchedAt)}` : ''}
+          {fetchedAt ? t('now.updated', { t: fmtTime(fetchedAt) }) : ''}
         </span>
       </div>
       {steps.length === 0 ? (
-        <p className="mt-3 text-xs text-[#8E8E93]">暂无临近预报数据，请稍后刷新</p>
+        <p className="mt-3 text-xs text-[#8E8E93]">{t('now.empty')}</p>
       ) : (
         <ol className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {steps.map((step) => {
@@ -39,7 +41,7 @@ export default function NowcastStrip({
         </ol>
       )}
       <p className="mt-2 text-[10px] leading-relaxed text-[#8E8E93]">
-        天文台雷达外推，每 12 分钟更新。0-2 小时内最可信赖的预报。
+        {t('now.footnote')}
       </p>
     </section>
   );

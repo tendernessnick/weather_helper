@@ -3,16 +3,19 @@ import { api } from '../api';
 import type { BestResponse } from '../types';
 import Icon from '../components/Icon';
 import RainMap from '../components/RainMap';
+import { districtName, useLang } from '../i18n';
+import type { TKey } from '../i18n';
 
 const ZONE_BG: Record<string, string> = {
   go: 'bg-[#E8F8ED]', edge: 'bg-[#FFF4E5]', no: 'bg-[#FFE5E5]',
 };
-const ZONE_LABEL: Record<string, string> = { go: '放心', edge: '边缘', no: '别赌' };
 const ZONE_TEXT: Record<string, string> = {
   go: 'text-[#1B7A3D]', edge: 'text-[#8A6100]', no: 'text-[#C0392B]',
 };
+const ZONE_KEY: Record<string, TKey> = { go: 'zone.go', edge: 'zone.edge', no: 'zone.no' };
 
 export default function Best() {
+  const { t, lang } = useLang();
   const [data, setData] = useState<BestResponse | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +27,7 @@ export default function Best() {
   }, [selected]);
 
   if (error) return <div className="p-8 text-center text-sm text-[#FF3B30]">{error}</div>;
-  if (!data) return <div className="p-8 text-center text-sm text-[#8E8E93]">加载中…</div>;
+  if (!data) return <div className="p-8 text-center text-sm text-[#8E8E93]">{t('common.loading')}</div>;
 
   const chips = data.hours.slice(0, 18);
   const median = data.city_median_pop ?? 0;
@@ -38,7 +41,7 @@ export default function Best() {
 
       {/* hour selector */}
       <div className="px-4 pt-3">
-        <p className="text-[12px] text-[#6D6D72]">选时段，看全港哪个球场最稳</p>
+        <p className="text-[12px] text-[#6D6D72]">{t('best.pick')}</p>
         <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
           {chips.map((h) => {
             const hh = new Date(h.hour).getHours();
@@ -52,9 +55,9 @@ export default function Best() {
                   isSel ? 'bg-[#007AFF] text-white' : 'bg-white text-[#3C3C43]'
                 }`}
               >
-                <span>{isNextDay ? '明天' : ''}{hh.toString().padStart(2, '0')}点</span>
+                <span>{isNextDay ? t('best.tomorrow') : ''}{t('best.hour', { hh: hh.toString().padStart(2, '0') })}</span>
                 <span className={`text-[10px] font-normal ${isSel ? 'text-white/80' : 'text-[#8E8E93]'}`}>
-                  市区{Math.round(h.city_median_pop)}%
+                  {t('best.city', { p: Math.round(h.city_median_pop) })}
                 </span>
               </button>
             );
@@ -69,9 +72,9 @@ export default function Best() {
             <Icon name="drizzle" className="h-5 w-5" />
           </span>
           <p className="text-[12px] font-semibold leading-relaxed text-[#8A6100]">
-            这个时段全市都偏湿（中位 {Math.round(median)}%）
+            {t('best.wetBanner', { p: Math.round(median) })}
             {betterHours.length > 0 && (
-              <>——更稳的是 {betterHours.map((h) => `${new Date(h.hour).getHours()}点`).join('、')}</>
+              <>{t('best.wetBetter', { hours: betterHours.map((h) => t('best.hour', { hh: String(new Date(h.hour).getHours()) })).join('、') })}</>
             )}
           </p>
         </div>
@@ -87,9 +90,11 @@ export default function Best() {
                 <span className={`text-[15px] font-bold ${ZONE_TEXT[c.zone]}`}>{c.corrected_pop}%</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold">{c.name_sc}</div>
+                <div className="truncate text-[14px] font-semibold">
+                  {lang === 'en' ? (c.name_en ?? c.name_sc) : lang === 'hant' ? (c.name_tc ?? c.name_sc) : c.name_sc}
+                </div>
                 <div className="truncate text-[11px] text-[#8E8E93]">
-                  {c.district_tc} · 官方 {c.pop}% · {ZONE_LABEL[c.zone]}
+                  {districtName(c.district_tc, c.district_en ?? '', lang)} · {t('best.official', { p: c.pop, z: t(ZONE_KEY[c.zone]) })}
                 </div>
               </div>
               <span className="shrink-0 text-black/25">
@@ -100,7 +105,7 @@ export default function Best() {
         ))}
       </ul>
       <p className="mt-2 px-4 text-[10px] leading-relaxed text-[#8E8E93]">
-        按校正后概率升序（校正 = 用近 30 天实测表现换算官方预报）。前 20 名展示，点卡片看球场详情。
+        {t('best.footnote')}
       </p>
     </div>
   );
