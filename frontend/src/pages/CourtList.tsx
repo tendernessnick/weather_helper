@@ -121,15 +121,16 @@ export default function CourtList() {
 
   return (
     <div className="relative">
-      {/* iOS-contacts-style A-Z rail. First child so its sticky anchor is the
-          top of the wrapper: it floats at the right edge of the app column,
-          vertically centred in the viewport, from the very first scroll.
-          Tap a letter, or press-and-drag to seek (no precision needed). */}
+      {/* iOS-contacts-style A-Z rail. position:fixed so it takes no flow
+          space (a sticky first child reserved its own ~330px at the top).
+          right: on narrow screens hug the edge; on wide ones align to the
+          app column (max-w-3xl = 48rem) instead of the window edge. */}
       {activeLetters.length > 0 && (
         <>
           <nav
             ref={railRef}
-            className="sticky top-1/2 z-30 -translate-y-1/2 ml-auto mr-1 w-fit touch-none select-none"
+            className="fixed top-1/2 z-30 -translate-y-1/2 w-fit touch-none select-none"
+            style={{ right: 'calc(max(0px, 100vw - 48rem) / 2 + 0.25rem)' }}
             aria-label="字母索引"
             onPointerDown={onRailPointerDown}
             onPointerMove={onRailPointerMove}
