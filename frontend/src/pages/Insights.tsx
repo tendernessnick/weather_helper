@@ -127,8 +127,15 @@ function ReliabilityChart({ rows }: { rows: NonNullable<StatsOverview['open_mete
           💡 {verdict}
         </p>
       )}
-      <div className="relative mt-2 h-44 rounded-lg bg-slate-50">
+      <span className="mb-0.5 block pl-1 text-[9px] text-slate-400">↑ 实际下的%</span>
+      <div className="relative h-40 rounded-lg bg-slate-50">
         <div className="absolute inset-0">
+          {[25, 50, 75].map((p) => (
+            <div key={`h${p}`} className="absolute left-0 right-0 h-px bg-slate-200/70" style={{ top: `${p}%` }} />
+          ))}
+          {[25, 50, 75].map((p) => (
+            <div key={`v${p}`} className="absolute bottom-0 top-0 w-px bg-slate-200/70" style={{ left: `${p}%` }} />
+          ))}
           <div className="absolute left-0 right-0 top-0 border-t border-dashed border-slate-300" />
           <div className="absolute bottom-0 left-0 h-full w-px bg-slate-300" />
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
@@ -140,9 +147,16 @@ function ReliabilityChart({ rows }: { rows: NonNullable<StatsOverview['open_mete
             ))}
           </svg>
         </div>
-        <span className="absolute bottom-0.5 right-1 text-[9px] text-slate-400">预报说的% →</span>
-        <span className="absolute left-1 top-0.5 text-[9px] text-slate-400">↑ 实际下的%</span>
+        {[0, 25, 50, 75, 100].map((v) => (
+          <span key={`y${v}`} className="absolute left-1 -translate-y-1/2 text-[8px] tabular-nums text-slate-400"
+                style={{ top: `${100 - v}%` }}>{v}</span>
+        ))}
+        {[0, 25, 50, 75, 100].map((v) => (
+          <span key={`x${v}`} className="absolute bottom-0 -translate-x-1/2 text-[8px] tabular-nums text-slate-400"
+                style={v === 0 ? { left: 4 } : v === 100 ? { right: 4 } : { left: `${v}%` }}>{v}</span>
+        ))}
       </div>
+      <span className="mt-0.5 block pr-1 text-right text-[9px] text-slate-400">预报说的% →</span>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
         点落在虚线上=说到做到；整体在虚线下方=爱报大话；气泡越大=这个区间的样本越多。
       </p>
