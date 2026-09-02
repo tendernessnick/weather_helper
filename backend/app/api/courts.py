@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
 from ..db import get_db
-from ..models import Court, ForecastSnapshot, NowcastSnapshot
-from ..services import hko_nowcast, verification
+from ..models import Climatology, Court, ForecastSnapshot, NowcastSnapshot
+from ..services import analytics, hko_nowcast, verification
 from ..services.hko import get_cached_current_weather
 
 router = APIRouter(tags=["courts"])
@@ -118,6 +118,13 @@ def court_scores(court_id: str, window_days: int | None = Query(default=None, ge
     return verification.compute_court_scores(db, court_id, window_days)
 
 
+@router.get("/courts/{court_id}/calibration")
+def court_calibration(court_id: str, db: Session = Depends(get_db)):
+    if db.get(Court, court_id) is None:
+        raise HTTPException(status_code=404, detail="court not found")
+    return analytics.court_calibration(db, court_id)
+
+
 @router.get("/courts/{court_id}/weather")
 def court_weather(court_id: str, db: Session = Depends(get_db)):
     court = db.get(Court, court_id)
@@ -137,22 +144,40 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
     current = get_cached_current_weather(db)
     warnings = (current or {}).get("warningMessage") or []
 
+    # Statistics enrichments: corrected probability (pooled calibration),
+    # climatological base rate per hour, decision zone, persistence card.
+    calib_f, calib_n = analytics.pooled_calibration(db)
+    clim_rows = db.execute(
+        select(Climatology.month, Climatology.hour,
+               Climatology.rain_count, Climatology.samples)
+        .where(Climatology.court_id == court_id)
+    ).all()
+    clim = {(m, h): (r / s if s else None) for m, h, r, s in clim_rows}
+
+    hourly_out = []
+    for s in hourly:
+        corrected = calib_f(s.precip_prob / 100.0)
+        clim_p = clim.get((s.target_hour.month, s.target_hour.hour))
+        hourly_out.append({
+            "hour": s.target_hour.isoformat(),
+            "pop": s.precip_prob,
+            "corrected_pop": round(corrected * 100),
+            "climatology_pop": round(clim_p * 100) if clim_p is not None else None,
+            "zone": analytics.decision_zone(corrected),
+            "mm": s.precip_mm,
+            "weather_code": s.weather_code,
+            "wind_kmh": s.wind_kmh,
+        })
+
     return {
         "court_id": court_id,
         "nowcast": {
             "fetched_at": nowcast[0].isoformat() if nowcast else None,
             "steps": nowcast[1] if nowcast else [],
         },
-        "hourly": [
-            {
-                "hour": s.target_hour.isoformat(),
-                "pop": s.precip_prob,
-                "mm": s.precip_mm,
-                "weather_code": s.weather_code,
-                "wind_kmh": s.wind_kmh,
-            }
-            for s in hourly
-        ],
+        "hourly": hourly_out,
+        "calibration": {"basis_n": calib_n},
+        "persistence": analytics.persistence_card(db, court_id),
         "current": current,
         "warnings": warnings,
         "sources": {

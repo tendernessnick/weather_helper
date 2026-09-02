@@ -6,13 +6,23 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ..config import floor_hour, hk_now, settings
-from ..models import Court, ForecastSnapshot
+from ..models import Court, ForecastLead, ForecastSnapshot
 
 logger = logging.getLogger(__name__)
 
 HOURLY_VARS = "precipitation_probability,precipitation,weather_code,wind_speed_10m"
 BATCH_SIZE = 20  # locations per request; Open-Meteo returns results in input order
 FORECAST_DAYS = 3
+
+# Lead-time buckets for decay analysis: upper bound in hours per bucket id.
+LEAD_BUCKETS = [("l3", 3.0), ("l12", 12.0), ("l24", 30.0), ("l48", 50.0)]
+
+
+def _lead_bucket(lead_hours: float) -> str | None:
+    for bucket, upper in LEAD_BUCKETS:
+        if lead_hours <= upper:
+            return bucket
+    return None  # beyond 50h: not used in decay analysis
 
 
 def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
@@ -31,6 +41,14 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
         .filter(ForecastSnapshot.court_id == court_id,
                 ForecastSnapshot.target_hour >= min(kept),
                 ForecastSnapshot.target_hour <= max(kept))
+        .all()
+    }
+    lead_keys = {
+        (row.target_hour, row.lead_bucket)
+        for row in db.query(ForecastLead)
+        .filter(ForecastLead.court_id == court_id,
+                ForecastLead.target_hour >= min(kept),
+                ForecastLead.target_hour <= max(kept))
         .all()
     }
     for i, target in enumerate(times):
@@ -57,6 +75,16 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
         row.wind_kmh = float(wind)
         row.fetched_at = fetched_at
         n += 1
+
+        # Lead-time bucket copy: first entry into each bucket is frozen, i.e.
+        # the forecast as seen at that lead before the target hour.
+        lead_h = (target - fetched_at).total_seconds() / 3600.0
+        bucket = _lead_bucket(lead_h)
+        if bucket is not None and (target, bucket) not in lead_keys:
+            db.add(ForecastLead(
+                court_id=court_id, target_hour=target, lead_bucket=bucket,
+                precip_prob=int(prob), precip_mm=float(mm), fetched_at=fetched_at))
+            lead_keys.add((target, bucket))
     return n
 
 

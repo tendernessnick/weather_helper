@@ -1,6 +1,7 @@
 import { getDeviceId } from './device';
 import type {
-  CourtListItem, CourtScores, Reminder, ReportStatus, WeatherResponse,
+  CalibrationInfo, CourtListItem, CourtRankRow, CourtScores, LeadBucket,
+  HourProfileRow, Reminder, ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
 
 const DEVICE_ID = getDeviceId();
@@ -92,4 +93,18 @@ export const api = {
 
   checkReminders: () =>
     request<{ reminders: Reminder[] }>('/api/reminders/check'),
+
+  statsOverview: () => request<StatsOverview>('/api/stats/overview'),
+
+  leadDecay: () =>
+    request<Record<'l3' | 'l12' | 'l24' | 'l48', LeadBucket>>('/api/stats/lead-decay'),
+
+  hourlyProfile: () =>
+    request<{ threshold_pct: number; profile: HourProfileRow[] }>('/api/stats/hourly-profile'),
+
+  courtsRanking: () =>
+    request<{ group_rate: number | null; courts: CourtRankRow[] }>('/api/stats/courts'),
+
+  courtCalibration: (id: string) =>
+    request<CalibrationInfo>(`/api/courts/${id}/calibration`),
 };

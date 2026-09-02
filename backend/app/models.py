@@ -115,6 +115,66 @@ class PushSubscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class ForecastLead(Base):
+    """Open-Meteo forecast as first seen at a given lead-time bucket.
+
+    Frozen on first entry into the bucket (e.g. the l24 row for target hour T
+    holds the forecast issued ~24h before T), enabling lead-time decay
+    analysis. Kept on the 30-day purge cycle.
+    """
+
+    __tablename__ = "forecast_leads"
+    __table_args__ = (UniqueConstraint("court_id", "target_hour", "lead_bucket",
+                                        name="uq_fl_court_hour_bucket"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    court_id: Mapped[str] = mapped_column(String(32), index=True)
+    target_hour: Mapped[datetime] = mapped_column(DateTime, index=True)
+    lead_bucket: Mapped[str] = mapped_column(String(4))  # l3 | l12 | l24 | l48
+    precip_prob: Mapped[int] = mapped_column(Integer)
+    precip_mm: Mapped[float] = mapped_column(Float, default=0.0)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class Climatology(Base):
+    """10-year hourly rain frequency per court, month and hour-of-day.
+
+    Derived from the Open-Meteo ERA5 archive (~11km grid) once via backfill;
+    the raw series is never stored, only these aggregates.
+    """
+
+    __tablename__ = "climatology"
+    __table_args__ = (UniqueConstraint("court_id", "month", "hour", name="uq_clim_court_mh"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    court_id: Mapped[str] = mapped_column(String(32), index=True)
+    month: Mapped[int] = mapped_column(Integer)
+    hour: Mapped[int] = mapped_column(Integer)
+    samples: Mapped[int] = mapped_column(Integer)
+    rain_count: Mapped[int] = mapped_column(Integer)
+
+
+class Persistence(Base):
+    """Monthly rain persistence per court from the 10-year archive.
+
+    Transitions are 1-hour Markov counts; survival_json maps booking length
+    L (1..4 hours) to P(next L hours all dry | dry now), the direct answer to
+    "will my 2-hour booking stay dry".
+    """
+
+    __tablename__ = "persistence"
+    __table_args__ = (UniqueConstraint("court_id", "month", name="uq_persist_court_month"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    court_id: Mapped[str] = mapped_column(String(32), index=True)
+    month: Mapped[int] = mapped_column(Integer)
+    wet_to_wet: Mapped[int] = mapped_column(Integer, default=0)
+    wet_to_dry: Mapped[int] = mapped_column(Integer, default=0)
+    dry_to_wet: Mapped[int] = mapped_column(Integer, default=0)
+    dry_to_dry: Mapped[int] = mapped_column(Integer, default=0)
+    survival_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
 class KvCache(Base):
     """Small cache for upstream payloads shown verbatim (current weather, etc.)."""
 

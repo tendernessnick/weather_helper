@@ -14,8 +14,9 @@ from sqlalchemy import delete
 
 from .config import hk_now, settings
 from .db import SessionLocal
-from .models import ForecastSnapshot, NowcastSnapshot, Observation, UserReport
-from .services import hko, hko_nowcast, open_meteo, push
+from .models import (Climatology, ForecastLead, ForecastSnapshot, NowcastSnapshot,
+                     Observation, Persistence, UserReport)
+from .services import climate, hko, hko_nowcast, open_meteo, push
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,14 @@ def _job_purge():
     cutoff = hk_now() - timedelta(days=settings.window_days + 2)
     with SessionLocal() as db:
         db.execute(delete(ForecastSnapshot).where(ForecastSnapshot.target_hour < cutoff))
+        db.execute(delete(ForecastLead).where(ForecastLead.target_hour < cutoff))
         db.execute(delete(NowcastSnapshot).where(NowcastSnapshot.fetched_at < cutoff))
         db.execute(delete(Observation).where(Observation.observed_hour < cutoff))
         # Keep accepted reports as an audit trail; drop rejected ones with the window.
         db.execute(delete(UserReport).where(
             UserReport.created_at < cutoff, UserReport.status != "accepted"))
         db.commit()
+    logger.info("purged rows older than %s", cutoff)
 
 
 JOBS = [
@@ -65,6 +68,9 @@ JOBS = [
     ("ingest_open_meteo", _job_ingest_open_meteo, 60 * 60),
     ("push_check", _job_push_check, 5 * 60),
     ("purge", _job_purge, 24 * 3600),
+    # monthly climatology top-up (ERA5 archive lags a few days; daily tries
+    # would mostly 404 on the incomplete tail, monthly is plenty)
+    ("climate_update", climate.update_recent_months, 30 * 24 * 3600),
 ]
 
 

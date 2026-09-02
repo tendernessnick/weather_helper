@@ -1,6 +1,7 @@
-import { Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes } from 'react-router-dom';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
+import Insights from './pages/Insights';
 import ReminderPoller from './components/ReminderPoller';
 
 export default function App() {
@@ -17,6 +18,18 @@ export default function App() {
               </div>
             </div>
           </a>
+          <nav className="flex gap-1 text-xs font-bold">
+            <NavLink to="/"
+              className={({ isActive }) =>
+                `rounded-full px-3 py-1.5 ${isActive ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>
+              球场
+            </NavLink>
+            <NavLink to="/insights"
+              className={({ isActive }) =>
+                `rounded-full px-3 py-1.5 ${isActive ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>
+              洞察
+            </NavLink>
+          </nav>
         </div>
       </header>
 
@@ -24,6 +37,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<CourtList />} />
           <Route path="/courts/:id" element={<CourtDetail />} />
+          <Route path="/insights" element={<Insights />} />
           <Route path="*" element={
             <div className="p-8 text-center text-slate-500">页面不存在</div>
           } />
