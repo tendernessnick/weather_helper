@@ -33,3 +33,11 @@ class SubscriptionIn(BaseModel):
     court_id: str
     play_at: datetime  # HK local naive time
     hours_before: float = Field(default=0.5, ge=0.1, le=24)
+
+
+class PollingSubscriptionIn(BaseModel):
+    """Reminder delivered by in-page polling (no Web Push service available)."""
+
+    court_id: str
+    play_at: datetime  # HK local naive time
+    hours_before: float = Field(default=0.5, ge=0.1, le=24)

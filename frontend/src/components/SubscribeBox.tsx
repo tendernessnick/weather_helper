@@ -19,49 +19,77 @@ function defaultPlayAt(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (!('Notification' in window)) return 'denied';
+  if (Notification.permission !== 'default') return Notification.permission;
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return 'denied';
+  }
+}
+
 export default function SubscribeBox({ court }: { court: Court }) {
-  const [enabled, setEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [playAt, setPlayAt] = useState(defaultPlayAt());
   const [message, setMessage] = useState<string | null>(null);
   const [tone, setTone] = useState<'ok' | 'err'>('ok');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.pushPublicKey().then((r) => setEnabled(r.enabled && !!r.public_key))
-      .catch(() => setEnabled(false));
+    api.pushPublicKey().then((r) => setPushEnabled(r.enabled && !!r.public_key))
+      .catch(() => setPushEnabled(false));
   }, []);
 
   const subscribe = async () => {
     setBusy(true);
     setMessage(null);
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        throw new Error('此浏览器不支持推送通知');
+      let pushOk = false;
+      if (pushEnabled && 'serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          if (await requestNotificationPermission() !== 'granted') {
+            throw new Error('未获得通知权限');
+          }
+          const { public_key } = await api.pushPublicKey();
+          if (!public_key) throw new Error('服务器未配置推送');
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(public_key),
+          });
+          const json = sub.toJSON() as {
+            endpoint: string;
+            keys: { p256dh: string; auth: string };
+          };
+          // datetime-local strings are naive local time - the backend stores HK
+          // local time, so send it unchanged instead of converting to UTC.
+          await api.subscribe({
+            subscription: { endpoint: json.endpoint, keys: json.keys },
+            court_id: court.id,
+            play_at: playAt,
+            hours_before: 0.5,
+          });
+          pushOk = true;
+        } catch {
+          // Push service unreachable (e.g. Google FCM blocked) or denied -
+          // fall back to in-page reminders below.
+        }
       }
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('未获得通知权限');
 
-      const { public_key } = await api.pushPublicKey();
-      if (!public_key) throw new Error('服务器未配置推送');
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(public_key),
-      });
-      const json = sub.toJSON() as {
-        endpoint: string;
-        keys: { p256dh: string; auth: string };
-      };
-      // datetime-local strings are naive local time - the backend stores HK
-      // local time, so send it unchanged instead of converting to UTC.
-      await api.subscribe({
-        subscription: { endpoint: json.endpoint, keys: json.keys },
-        court_id: court.id,
-        play_at: playAt,
-        hours_before: 0.5,
-      });
-      setMessage('已订阅：开打前 30 分钟若有下雨风险会通知你。');
+      if (pushOk) {
+        setMessage('已订阅推送提醒：开打前 30 分钟若有下雨风险会通知你（即使页面已关闭）。');
+      } else {
+        // System notification still improves the polling experience when the
+        // tab is in the background; denial just means in-page banners only.
+        await requestNotificationPermission();
+        await api.subscribePolling({
+          court_id: court.id,
+          play_at: playAt,
+          hours_before: 0.5,
+        });
+        setMessage('当前环境连不上推送服务，已改用页面内提醒：到点前请保持本站页面打开，会弹出系统通知或页内横幅。');
+      }
       setTone('ok');
     } catch (err) {
       setMessage(String((err as Error).message ?? err));
@@ -74,27 +102,28 @@ export default function SubscribeBox({ court }: { court: Court }) {
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-sm font-bold">下雨风险提醒</h2>
-      {!enabled ? (
-        <p className="mt-1 text-[11px] text-slate-400">服务器未配置推送（需要在部署时设置 VAPID 密钥）</p>
-      ) : (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="datetime-local"
-            value={playAt}
-            onChange={(e) => setPlayAt(e.target.value)}
-            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-          />
-          <button
-            onClick={subscribe}
-            disabled={busy}
-            className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white shadow disabled:bg-slate-300"
-          >
-            {busy ? '订阅中…' : '开打前30分钟提醒我'}
-          </button>
-        </div>
-      )}
+      <p className="mt-1 text-[10px] text-slate-400">
+        到你设定的开打时间前 30 分钟，若该时段降水概率 ≥50% 或临近预报有雨则提醒你。
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="datetime-local"
+          value={playAt}
+          onChange={(e) => setPlayAt(e.target.value)}
+          className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+        />
+        <button
+          onClick={subscribe}
+          disabled={busy}
+          className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white shadow disabled:bg-slate-300"
+        >
+          {busy ? '订阅中…' : '开打前30分钟提醒我'}
+        </button>
+      </div>
       {message && (
-        <p className={`mt-2 text-xs ${tone === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>{message}</p>
+        <p className={`mt-2 text-xs leading-relaxed ${tone === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>
+          {message}
+        </p>
       )}
     </section>
   );

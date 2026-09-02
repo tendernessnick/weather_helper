@@ -1,6 +1,6 @@
 import { getDeviceId } from './device';
 import type {
-  CourtListItem, CourtScores, ReportStatus, WeatherResponse,
+  CourtListItem, CourtScores, Reminder, ReportStatus, WeatherResponse,
 } from './types';
 
 const DEVICE_ID = getDeviceId();
@@ -80,4 +80,16 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+
+  subscribePolling: (body: {
+    court_id: string;
+    play_at: string;
+    hours_before: number;
+  }) => request<{ status: string; mode: string }>('/api/subscriptions/polling', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+
+  checkReminders: () =>
+    request<{ reminders: Reminder[] }>('/api/reminders/check'),
 };

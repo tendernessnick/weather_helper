@@ -40,7 +40,7 @@ def _send(subscription: PushSubscription, payload: dict) -> bool:
         return True  # transient error; keep the subscription
 
 
-def _rain_risk(db: Session, court_id: str, play_hour) -> tuple[bool, int | None]:
+def rain_risk(db: Session, court_id: str, play_hour) -> tuple[bool, int | None]:
     """(risky, pop%) for the play hour: OM snapshot PoP or any F3 rain step."""
     snap = db.execute(
         select(ForecastSnapshot.precip_prob)
@@ -70,9 +70,12 @@ def check_and_notify(db: Session) -> int:
         return 0
 
     now = hk_now()
+    # Polling-mode subscriptions ("poll:" endpoints) are delivered by the
+    # frontend reminder poller, not by Web Push.
     due = db.execute(
         select(PushSubscription)
-        .where(PushSubscription.notified_at.is_(None))
+        .where(PushSubscription.notified_at.is_(None),
+               ~PushSubscription.endpoint.like("poll:%"))
     ).scalars().all()
 
     sent = 0
@@ -88,7 +91,7 @@ def check_and_notify(db: Session) -> int:
             continue
 
         play_hour = floor_hour(sub.play_at)
-        risky, pop = _rain_risk(db, sub.court_id, play_hour)
+        risky, pop = rain_risk(db, sub.court_id, play_hour)
         if not risky:
             if now >= notify_until:
                 # reminder window fully passed without rain risk; don't retry

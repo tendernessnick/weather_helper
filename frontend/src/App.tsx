@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
+import ReminderPoller from './components/ReminderPoller';
 
 export default function App() {
   return (
@@ -28,6 +29,8 @@ export default function App() {
           } />
         </Routes>
       </main>
+
+      <ReminderPoller />
 
       <footer className="px-4 pb-6 text-center text-[11px] leading-relaxed text-slate-500">
         预报数据：香港天文台 SWIRLS 临近预报（0-2小时）· Open-Meteo 集合预报（逐小时概率）<br />

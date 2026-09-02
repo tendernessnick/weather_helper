@@ -95,3 +95,11 @@ export interface ReportStatus {
   reports_today: number;
   daily_limit: number;
 }
+
+export interface Reminder {
+  court_id: string;
+  court_name: string;
+  play_hhmm: string;
+  risky: boolean;
+  pop: number | null;
+}
