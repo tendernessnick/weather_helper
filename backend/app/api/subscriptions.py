@@ -125,12 +125,15 @@ def check_reminders(
 @router.delete("/subscriptions")
 def delete_subscription(
     endpoint: str,
+    x_device_id: str = Header(min_length=8, max_length=64),
     db: Session = Depends(get_db),
 ):
     sub = db.query(PushSubscription).filter(
         PushSubscription.endpoint == endpoint).first()
     if sub is None:
         raise HTTPException(status_code=404, detail="subscription not found")
+    if sub.device_id != x_device_id.strip():
+        raise HTTPException(status_code=403, detail="not your subscription")
     db.delete(sub)
     db.commit()
     return {"status": "deleted"}

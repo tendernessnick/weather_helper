@@ -138,17 +138,19 @@ def overview(db: Session) -> dict:
         prev = None
         for hour in sorted(hours):
             o = court_obs.get(hour)
-            if o is not None:
-                fcst = hours[hour]
-                key = ("hits" if fcst else "misses") if o else \
-                      ("false_alarms" if fcst else "correct_negatives")
-                conf3[key] += 1
-                # onset: previous observed hour dry, this hour raining
-                if o and prev is False:
-                    onsets_total += 1
-                    if fcst:
-                        captured += 1
-            prev = o if o is not None else prev
+            if o is None:
+                prev = None  # observation gap: "previous hour" must be adjacent
+                continue
+            fcst = hours[hour]
+            key = ("hits" if fcst else "misses") if o else \
+                  ("false_alarms" if fcst else "correct_negatives")
+            conf3[key] += 1
+            # onset: immediately preceding observed hour dry, this hour raining
+            if o and prev is False:
+                onsets_total += 1
+                if fcst:
+                    captured += 1
+            prev = o
     result["hko_f3"] = {
         **_rates(conf3),
         "onsets": onsets_total,

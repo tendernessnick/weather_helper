@@ -151,6 +151,48 @@ def test_onset_capture():
     assert onset_capture([], set())["captured"] is None
 
 
+def test_overview_onset_requires_adjacent_observed_hour():
+    """An onset counts only when the immediately preceding hour was observed
+    dry - a gap must reset the chain, not borrow a stale previous hour."""
+    import os
+    os.environ.setdefault("DATABASE_URL", "sqlite://")
+    from datetime import datetime, timedelta
+    from app.db import Base, SessionLocal, engine
+    from app.models import Court, NowcastSnapshot, Observation
+    from app.services.analytics import overview
+    import json
+
+    Base.metadata.create_all(engine)
+    db = SessionLocal()
+    try:
+        db.add(Court(id="c1", name_en="T", name_tc="T", name_sc="T",
+                     district_en="D", district_tc="D", lat=22.3, lon=114.2, letter="T"))
+        base = datetime.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=5)
+
+        def f3_wet(hour_idx: int) -> None:
+            issued = base + timedelta(hours=hour_idx) - timedelta(minutes=90)
+            ending = base + timedelta(hours=hour_idx) + timedelta(minutes=30)
+            db.add(NowcastSnapshot(
+                court_id="c1", fetched_at=issued,
+                steps_json=json.dumps([{"ending": ending.isoformat(), "mm": 1.0}])))
+
+        for i in range(4):
+            f3_wet(i)
+        # observations: dry, MISSING, rain, dry - the rain hour's previous
+        # observed hour is stale-dry across the gap -> must NOT count as onset
+        for i, rain in ((0, False), (2, True), (3, False)):
+            db.add(Observation(court_id="c1", observed_hour=base + timedelta(hours=i),
+                               station_name="S", rainfall_mm=2.0 if rain else 0.0,
+                               rain=rain, fetched_at=base + timedelta(hours=i)))
+        db.commit()
+
+        result = overview(db)
+        assert result["hko_f3"]["onsets"] == 0
+    finally:
+        db.close()
+        Base.metadata.drop_all(engine)
+
+
 def test_dual_truth_flags_microclimate():
     agree = [(False, False)] * 15 + [(True, True)] * 3
     diverge = [(True, False)] * 5  # users see rain, gauge dry -> 5/23 = 22%

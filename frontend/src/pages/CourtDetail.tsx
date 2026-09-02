@@ -9,6 +9,51 @@ import ReportSheet from '../components/ReportSheet';
 import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
 
+/** Plain-language verdict for the next few hours, computed from zones. */
+function VerdictBanner({ weather }: { weather: WeatherResponse }) {
+  const hours = weather.hourly.slice(0, 6);
+  if (hours.length === 0) return null;
+
+  const worst = hours.reduce<string>((acc, h) => {
+    const z = h.zone ?? 'go';
+    if (z === 'no' || acc === 'no') return 'no';
+    if (z === 'edge' || acc === 'edge') return 'edge';
+    return 'go';
+  }, 'go');
+  const worstHour = hours.find((h) => (h.zone ?? 'go') === worst);
+  const hhmm = worstHour ? new Date(worstHour.hour).getHours().toString().padStart(2, '0') + ':00' : '';
+  const pop = worstHour ? (worstHour.corrected_pop ?? worstHour.pop) : 0;
+
+  if (worst === 'go') {
+    return (
+      <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+        <span className="text-xl" aria-hidden>🎾</span>
+        <p className="text-xs font-semibold leading-relaxed text-emerald-800">
+          未来 {hours.length} 小时没有下雨风险，放心安排
+        </p>
+      </div>
+    );
+  }
+  if (worst === 'edge') {
+    return (
+      <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3">
+        <span className="text-xl" aria-hidden>🤔</span>
+        <p className="text-xs font-semibold leading-relaxed text-amber-800">
+          整体可以安排；{hhmm} 前后概率略高（{pop}%），属边缘时段，带把伞赌一把
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-xl border border-rose-300 bg-rose-50 p-3">
+      <span className="text-xl" aria-hidden>🌧️</span>
+      <p className="text-xs font-semibold leading-relaxed text-rose-800">
+        {hhmm} 前后有较高下雨风险（{pop}%），建议改期或换个时段
+      </p>
+    </div>
+  );
+}
+
 export default function CourtDetail() {
   const { id } = useParams<{ id: string }>();
   const [court, setCourt] = useState<Court | null>(null);
@@ -16,12 +61,17 @@ export default function CourtDetail() {
   const [weather, setWeather] = useState<WeatherResponse | null>(null);
   const [calibration, setCalibration] = useState<CalibrationInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     setError(null);
+    setNotFound(false);
     Promise.all([
-      fetch(`/api/courts/${id}`).then((r) => r.json()),
+      fetch(`/api/courts/${id}`).then((r) => {
+        if (!r.ok) throw new Error('球场不存在');
+        return r.json();
+      }),
       api.courtWeather(id),
       api.courtCalibration(id).catch(() => null),
     ])
@@ -31,9 +81,15 @@ export default function CourtDetail() {
         setWeather(weatherData);
         setCalibration(calib);
       })
-      .catch((err) => setError(String(err.message ?? err)));
+      .catch((err) => {
+        if (String(err.message) === '球场不存在') setNotFound(true);
+        else setError(String(err.message ?? err));
+      });
   }, [id]);
 
+  if (notFound) {
+    return <div className="p-8 text-center text-sm text-slate-500">球场不存在，<a href="/" className="text-sky-700 underline">返回列表</a></div>;
+  }
   if (error) {
     return <div className="p-8 text-center text-sm text-rose-600">{error}</div>;
   }
@@ -74,6 +130,8 @@ export default function CourtDetail() {
         </div>
       )}
 
+      <VerdictBanner weather={weather} />
+
       {microclimate && (
         <div className="mx-4 mt-3 rounded-xl border border-violet-300 bg-violet-50 p-3">
           <p className="text-xs font-bold text-violet-800">🌦️ 微气候球场</p>
@@ -89,26 +147,39 @@ export default function CourtDetail() {
         hourly={weather.hourly}
         calibrationN={weather.calibration?.basis_n}
       />
-      {calibration && calibration.basis && (
-        <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-bold">概率校准（预报数字 → 实测口径）</h2>
-          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-            用近 30 天「官方预报 vs 实际下雨」的对照把预报概率换算成真实频率
-            （{calibration.basis === 'court' ? '本球场专属口径' : '全港池化口径（本球场样本积累中）'}，
-            n={calibration.n}）。黑点即采用此换算。
-          </p>
-          <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
-            {calibration.mapping.map((m) => (
-              <div key={m.official_pct} className="rounded bg-slate-50 py-1.5">
-                <div className="text-slate-400">预报{m.official_pct}%</div>
-                <div className="text-sm font-bold text-slate-700">
-                  实际{Math.round(m.corrected * 100)}%
+      {calibration && calibration.basis && (() => {
+        const deltas = calibration.mapping
+          .map((m) => (m.official_pct - m.corrected * 100) / 100)
+          .filter((d) => Number.isFinite(d));
+        const avgDelta = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
+        const interpretation = Math.abs(avgDelta) < 0.05
+          ? '目前预报数字与实际接近，直接看官方概率即可'
+          : avgDelta > 0
+            ? `预报普遍虚高约 ${Math.round(avgDelta * 100)} 个百分点：说 ${Math.round(avgDelta * 100) + 40}% 时实际约 40%，以黑点为准`
+            : `预报普遍保守约 ${Math.round(-avgDelta * 100)} 个百分点：实际比预报说的更容易下雨，留点余量`;
+        return (
+          <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-bold">预报数字准不准？</h2>
+            <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-medium leading-relaxed text-slate-700">
+              💡 {interpretation}
+            </p>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+              依据近 30 天「官方预报 vs 实际下雨」对照（{calibration.basis === 'court' ? '本球场专属口径' : '全港合并口径，本球场样本积累中'}，
+              n={calibration.n}）。下表左边是预报说的，右边是实际发生的：
+            </p>
+            <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
+              {calibration.mapping.map((m) => (
+                <div key={m.official_pct} className="rounded bg-slate-50 py-1.5">
+                  <div className="text-slate-400">预报{m.official_pct}%</div>
+                  <div className="text-sm font-bold text-slate-700">
+                    实际{Math.round(m.corrected * 100)}%
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+              ))}
+            </div>
+          </section>
+        );
+      })()}
       {weather.persistence && <PersistenceCard data={weather.persistence} />}
       {scores && <ScoreCard scores={scores} />}
       <ReportSheet court={court} />

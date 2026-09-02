@@ -8,6 +8,29 @@ function pct(v: number | null | undefined): string {
   return v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`;
 }
 
+/** Plain-language verdict for the Brier Skill Score. */
+function bssVerdict(bss: number): { label: string; tone: string } {
+  if (bss < 0) return { label: '不如查日历', tone: 'bg-rose-100 text-rose-700' };
+  if (bss < 0.1) return { label: '勉强有用', tone: 'bg-amber-100 text-amber-700' };
+  if (bss < 0.25) return { label: '有价值', tone: 'bg-emerald-100 text-emerald-700' };
+  return { label: '很有价值', tone: 'bg-emerald-600 text-white' };
+}
+
+/** One-sentence auto-interpretation of the reliability curve. */
+function reliabilityVerdict(rows: NonNullable<StatsOverview['open_meteo']['reliability']>): string | null {
+  const usable = rows.filter((r) => r.n >= 10);
+  if (usable.length < 3) return null;
+  const n = usable.reduce((a, r) => a + r.n, 0);
+  const wMeanF = usable.reduce((a, r) => a + r.mean_forecast * r.n, 0) / n;
+  const wMeanO = usable.reduce((a, r) => a + r.observed_freq * r.n, 0) / n;
+  const delta = wMeanF - wMeanO;
+  if (Math.abs(delta) < 0.05) return '预报数字与实际基本一致，可以按面值相信';
+  if (delta > 0) {
+    return `预报普遍虚高：平均说的比实际多约 ${Math.round(delta * 100)} 个百分点（如说 60% 实际约 ${Math.max(0, Math.round((0.6 - delta) * 100))}%）`;
+  }
+  return `预报普遍保守：实际比说的更爱下雨约 ${Math.round(-delta * 100)} 个百分点`;
+}
+
 function BigStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="rounded-lg bg-slate-50 p-3">
@@ -18,30 +41,38 @@ function BigStat({ label, value, note }: { label: string; value: string; note?: 
   );
 }
 
-function SourceCard({ title, src, windowDays }: { title: string; src: StatsOverview['open_meteo']; windowDays: number }) {
+function SourceCard({ title, question, src, windowDays }: { title: string; question: string; src: StatsOverview['open_meteo']; windowDays: number }) {
   const dec = src.decomposition ?? null;
   const bss = src.bss ?? null;  // deterministic sources omit bss entirely
+  const verdict = bss !== null ? bssVerdict(bss) : null;
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-bold">{title}</h2>
         <span className="text-[10px] text-slate-400">近 {windowDays} 天 · n={src.n}</span>
       </div>
+      <p className="mt-0.5 text-[11px] text-slate-500">这一条回答：{question}</p>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
         <BigStat
-          label="技巧评分 BSS（比气候基准强多少）"
-          value={bss === null ? '—' : bss.toFixed(2)}
-          note={bss === null ? '确定性预报不适用概率评分'
-            : bss > 0 ? `预报比"只看历史平均"好 ${Math.round(bss * 100)}%`
-            : '暂不比历史平均强，别单独依赖'}
+          label={'比「只看历史平均」聪明多少（BSS）'}
+          value={bss === null ? '不适用' : bss.toFixed(2)}
+          note={bss === null ? '确定性预报没有概率可打分'
+            : bss > 0 ? `同样的信息量，比直接翻历史账本准 ${Math.round(bss * 100)}%`
+            : '暂时还不如直接翻历史账本'}
         />
         <BigStat
-          label="准确率（二分类，95% 置信区间）"
+          label="说下雨时准不准（准确率）"
           value={pct(src.accuracy)}
           note={src.accuracy === null ? '' : `n=${src.n} 小时样本`}
         />
       </div>
+
+      {verdict && (
+        <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${verdict.tone}`}>
+          {verdict.label}
+        </span>
+      )}
 
       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
         <span className="rounded-full bg-slate-100 px-2 py-0.5">
@@ -67,8 +98,8 @@ function SourceCard({ title, src, windowDays }: { title: string; src: StatsOverv
       {dec && (
         <div className="mt-3">
           <div className="text-[10px] text-slate-500">
-            Brier 分解：可靠性（虚高程度）{dec.reliability.toFixed(3)} · 分辨力 {dec.resolution.toFixed(3)} ·
-            基准不确定度 {dec.uncertainty.toFixed(3)}（本底下雨率 {pct(dec.base_rate)}）
+            误差拆解：数字虚高 {dec.reliability.toFixed(2)} · 能区分下不下 {dec.resolution.toFixed(2)} ·
+            天气本身的随机 {dec.uncertainty.toFixed(2)}（这个季节 {pct(dec.base_rate)} 的小时在下雨）
           </div>
           <div className="mt-1 flex h-2 overflow-hidden rounded-full">
             <div className="bg-rose-400" style={{ width: `${dec.reliability / (dec.reliability + dec.resolution + dec.uncertainty) * 100}%` }} />
@@ -76,7 +107,7 @@ function SourceCard({ title, src, windowDays }: { title: string; src: StatsOverv
             <div className="bg-slate-300" style={{ width: `${dec.uncertainty / (dec.reliability + dec.resolution + dec.uncertainty) * 100}%` }} />
           </div>
           <div className="mt-0.5 text-[9px] text-slate-400">
-            红=可靠性损失（数字虚高） 蓝=分辨力（能区分下不下） 灰=本底不确定
+            红=报大话的损失（越少越好） 蓝=真本事（越多越好） 灰=老天爷的随机（谁也消不掉）
           </div>
         </div>
       )}
@@ -85,13 +116,16 @@ function SourceCard({ title, src, windowDays }: { title: string; src: StatsOverv
 }
 
 function ReliabilityChart({ rows }: { rows: NonNullable<StatsOverview['open_meteo']['reliability']> }) {
+  const verdict = reliabilityVerdict(rows);
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">可靠性曲线（校准）</h2>
-      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-        横轴=预报概率，纵轴=实际下雨频率。贴对角线=预报数字可信；
-        在对角线下方=预报虚高（说的%比实际下的多）。气泡大小=样本量。
-      </p>
+      <h2 className="text-sm font-bold">它说的 60%，实际是 60% 吗？</h2>
+      <p className="mt-0.5 text-[11px] text-slate-500">这一条回答：预报的数字本身可不可信</p>
+      {verdict && (
+        <p className="mt-1.5 rounded-lg bg-slate-50 p-2 text-[11px] font-medium leading-relaxed text-slate-700">
+          💡 {verdict}
+        </p>
+      )}
       <div className="relative mt-2 h-44 rounded-lg bg-slate-50">
         <div className="absolute inset-0">
           <div className="absolute left-0 right-0 top-0 border-t border-dashed border-slate-300" />
@@ -105,24 +139,27 @@ function ReliabilityChart({ rows }: { rows: NonNullable<StatsOverview['open_mete
             ))}
           </svg>
         </div>
-        <span className="absolute bottom-0.5 right-1 text-[9px] text-slate-400">预报% →</span>
-        <span className="absolute left-1 top-0.5 text-[9px] text-slate-400">↑ 实际%</span>
+        <span className="absolute bottom-0.5 right-1 text-[9px] text-slate-400">预报说的% →</span>
+        <span className="absolute left-1 top-0.5 text-[9px] text-slate-400">↑ 实际下的%</span>
       </div>
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+        点落在虚线上=说到做到；整体在虚线下方=爱报大话；气泡越大=这个区间的样本越多。
+      </p>
     </section>
   );
 }
 
 const BUCKET_LABEL: Record<string, string> = {
-  l3: '≤3小时', l12: '3-12h', l24: '12-30h', l48: '30-50h',
+  l3: '临出门看', l12: '当天安排', l24: '明天订场', l48: '提前两天',
 };
 
 function LeadDecay({ data }: { data: Record<string, LeadBucket> }) {
   const keys = ['l3', 'l12', 'l24', 'l48'];
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">提前多久看预报才可信（时效衰减）</h2>
-      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-        同一个预报在不同提前量下的技巧评分 BSS。多桶数据从功能上线起积累，需要数周填满。
+      <h2 className="text-sm font-bold">提前多久看的预报才算数？</h2>
+      <p className="mt-0.5 text-[11px] text-slate-500">
+        这一条回答：隔天的预报能不能信、提前几天订场该信什么
       </p>
       <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
         {keys.map((k) => {
@@ -154,10 +191,9 @@ function HourProfile({ profile }: { profile: HourProfileRow[] }) {
   const max = Math.max(0.5, ...profile.map((p) => p.miss_rate ?? 0));
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">几点钟的预报最容易漏报</h2>
-      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-        各小时「实际下雨但预报没报」的比例（漏报率）。香港夏季午后对流雨是预报盲区，
-        该时段的预报建议主动打折。
+      <h2 className="text-sm font-bold">几点钟的预报最容易骗你？</h2>
+      <p className="mt-0.5 text-[11px] text-slate-500">
+        这一条回答：哪些时段的"没雨"要打个问号（漏报 = 实际下了但预报没说）
       </p>
       <div className="mt-2 flex items-end gap-[2px]" style={{ height: 72 }}>
         {profile.map((p) => (
@@ -181,10 +217,13 @@ function HourProfile({ profile }: { profile: HourProfileRow[] }) {
 function Ranking({ data }: { data: { group_rate: number | null; courts: CourtRankRow[] } }) {
   return (
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold">球场排行（收缩估计 · 带 95% 置信区间）</h2>
+      <h2 className="text-sm font-bold">哪个球场的预报最靠谱？</h2>
+      <p className="mt-0.5 text-[11px] text-slate-500">
+        这一条回答：同样是预报，在哪被骗的概率小一点
+      </p>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-        单球场样本噪声大，估计已向全港均值收缩（经验贝叶斯）。区间重叠=差异不显著，
-        请看区间而非名次。全域基准 {pct(data.group_rate)}。
+        横条是可信范围（95% 置信区间），竖线是估计值。<b>两条横条有重叠 = 这两个球场没有实际差别</b>，
+        别纠结名次。全港平均 {pct(data.group_rate)}。样本少的球场已自动向平均靠拢。
       </p>
       <ul className="mt-2 space-y-1">
         {data.courts.slice(0, 12).map((c, i) => (
@@ -216,6 +255,7 @@ export default function Insights() {
   const [profile, setProfile] = useState<HourProfileRow[] | null>(null);
   const [ranking, setRanking] = useState<{ group_rate: number | null; courts: CourtRankRow[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -237,15 +277,33 @@ export default function Insights() {
 
   return (
     <div className="pb-4">
-      <p className="mx-4 mt-4 rounded-xl bg-slate-800 p-3 text-[11px] leading-relaxed text-slate-200">
-        所有数字来自本站滚动 30 天的「预报快照 vs 实测」自动核对，样本量与置信区间全程标注；
-        历史基准来自十年 ERA5 档案（区域网格级 ~11km）。
-      </p>
-      <SourceCard title="Open-Meteo 逐小时概率预报" src={overview.open_meteo} windowDays={overview.window_days} />
+      <div className="mx-4 mt-4 rounded-xl bg-slate-800 p-3">
+        <button
+          onClick={() => setGuideOpen((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-[11px] font-bold text-slate-200"
+        >
+          <span>📊 这页是什么？怎么读？（点开 30 秒入门）</span>
+          <span aria-hidden>{guideOpen ? '−' : '+'}</span>
+        </button>
+        {guideOpen && (
+          <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-300">
+            <p>1. 本站持续把"预报当时怎么说的"存档，和"实际下没下"自动对账——这页就是对账结果。</p>
+            <p>2. 每个数字都带样本量 n：n 越小越会抖，别把小样本的数字当真理；显示"积累中"就是还不够。</p>
+            <p>3. 和"历史平均"比的分数（BSS）才是真本事：因为香港本来就不常下雨，闭眼说"没雨"也能蒙对 88%。</p>
+          </div>
+        )}
+      </div>
+      <SourceCard
+        title="Open-Meteo 逐小时概率预报" question="中期预报（2-48 小时）到底有没有用"
+        src={overview.open_meteo} windowDays={overview.window_days}
+      />
       {overview.open_meteo.reliability && overview.open_meteo.reliability.length > 0 && (
         <ReliabilityChart rows={overview.open_meteo.reliability} />
       )}
-      <SourceCard title="天文台临近预报（0-2 小时，确定性）" src={overview.hko_f3} windowDays={overview.window_days} />
+      <SourceCard
+        title="天文台临近预报（0-2 小时）" question="出门前最该信的那份雷达预报表现如何"
+        src={overview.hko_f3} windowDays={overview.window_days}
+      />
       <LeadDecay data={decay} />
       <HourProfile profile={profile} />
       <Ranking data={ranking} />

@@ -20,7 +20,7 @@ const ZONE_LABEL: Record<string, string> = {
 };
 
 export default function HourlyBars({
-  hourly, calibrationN,
+  hourly,
 }: { hourly: HourlyItem[]; calibrationN?: number }) {
   const items = hourly.slice(0, 48);
   const hasStats = items.some((i) => i.corrected_pop !== undefined);
@@ -74,7 +74,7 @@ export default function HourlyBars({
                     {corrected !== undefined && (
                       <div
                         className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-slate-700"
-                        style={{ bottom: Math.max(2, corrected * 0.62) - 3 }}
+                        style={{ bottom: Math.max(0, corrected * 0.62 - 3) }}
                       />
                     )}
                   </div>
@@ -87,11 +87,16 @@ export default function HourlyBars({
           </div>
         </div>
       )}
-      <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-        绿框为当前小时。蓝条=官方概率；黑点=校正后概率（用近 30 天该预报的实测表现换算
-        {hasStats ? `，基于 ${calibrationN ?? 0} 小时样本` : '，样本积累中暂时等于官方值'}）；
-        灰色虚线=十年同期历史下雨频率。背景色块为建议分区（绿≤30% 放心 / 黄 30-60% 边缘 / 红&gt;60% 别赌）。
-        底部时段的虚线若高于蓝条，说明该时段历史上比现在预报的更常下雨。
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-500" />官方预报</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-700" />按实测校正后</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-0 w-3 border-t border-dashed border-slate-400" />十年同期</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-50 ring-1 ring-emerald-200" />放心</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-50 ring-1 ring-amber-200" />边缘</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-50 ring-1 ring-rose-200" />别赌</span>
+      </div>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+        口诀：三个数都低 → 走；虚线比柱子高 → 这个时段历史上更爱下雨，别只信预报{hasStats ? '' : '（校正数据积累中，黑点暂等于官方值）'}。点柱子可看详情。
       </p>
     </section>
   );
