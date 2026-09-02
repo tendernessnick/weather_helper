@@ -20,15 +20,31 @@ registerRoute(
 );
 
 self.addEventListener('push', (event: PushEvent) => {
-  let payload: { title?: string; body?: string; url?: string } = {};
+  let payload: {
+    title?: string; body?: string; url?: string;
+    variants?: Record<string, { title?: string; body?: string }>;
+  } = {};
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
     payload = { body: event.data?.text() };
   }
+  // Pick the notification language matching this device (same rules as the app).
+  const pickVariant = (): { title?: string; body?: string } => {
+    const langs = [self.navigator.language, ...(self.navigator.languages ?? [])];
+    for (const l of langs) {
+      const low = l.toLowerCase();
+      const key = /^(zh-(tw|hk|mo)|yue)/.test(low) ? 'hant'
+        : low.startsWith('en') ? 'en'
+          : low.startsWith('zh') ? 'hans' : null;
+      if (key && payload.variants?.[key]) return payload.variants[key];
+    }
+    return {};
+  };
+  const variant = pickVariant();
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? '球场下雨风险提醒', {
-      body: payload.body ?? '',
+    self.registration.showNotification(variant.title ?? payload.title ?? '球场下雨风险提醒', {
+      body: variant.body ?? payload.body ?? '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       data: { url: payload.url ?? '/' },

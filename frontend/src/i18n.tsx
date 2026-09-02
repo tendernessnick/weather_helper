@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 export type Lang = 'hans' | 'hant' | 'en';
@@ -343,7 +343,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('wh_lang', l); } catch { /* private mode */ }
   };
 
-  const t = (key: TKey, params?: Record<string, string | number>): string => {
+  const t = useCallback((key: TKey, params?: Record<string, string | number>): string => {
     let s: string = S[key][IDX[lang]];
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -351,7 +351,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
       }
     }
     return s;
-  };
+  }, [lang]);
 
   return <Ctx.Provider value={{ lang, setLang, t }}>{children}</Ctx.Provider>;
 }

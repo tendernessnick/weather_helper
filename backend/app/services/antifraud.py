@@ -2,7 +2,7 @@
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
@@ -51,12 +51,12 @@ def check_report(db: Session, court: Court, device_id: str,
 
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     daily_count = db.execute(
-        select(UserReport.id)
+        select(func.count()).select_from(UserReport)
         .where(UserReport.device_id == device_id,
                UserReport.status == "accepted",
                UserReport.created_at >= day_start)
-    ).all()
-    if len(daily_count) >= settings.daily_report_limit:
+    ).scalar() or 0
+    if daily_count >= settings.daily_report_limit:
         return REASON_DAILY
 
     return None

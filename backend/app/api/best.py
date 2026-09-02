@@ -13,8 +13,7 @@ from ..services import analytics
 router = APIRouter(tags=["best"])
 
 
-def _rank_hour(db: Session, hour: datetime) -> list[dict]:
-    calib_f, _ = analytics.pooled_calibration(db)
+def _rank_hour(db: Session, hour: datetime, calib_f) -> list[dict]:
     courts = {c.id: c for c in db.query(Court).all()}
     rows = db.execute(
         select(ForecastSnapshot.court_id, ForecastSnapshot.precip_prob)
@@ -64,7 +63,9 @@ def best_hours(
         except ValueError:
             base = floor_hour(hk_now()) + timedelta(hours=1)
 
-    ranked = _rank_hour(db, base)
+    # calibration has a 10-min TTL cache; fetch once for ranking + 24h profile
+    calib_f, _ = analytics.pooled_calibration(db)
+    ranked = _rank_hour(db, base, calib_f)
 
     # next 24h city-median risk profile, for "better hour" suggestions
     hours = []
@@ -75,7 +76,6 @@ def best_hours(
             .where(ForecastSnapshot.target_hour == h)
         ).scalars().all()
         if rows:
-            calib_f, _ = analytics.pooled_calibration(db)
             pops = sorted(calib_f(p / 100.0) * 100 for p in rows)
             m = len(pops) // 2
             hours.append({

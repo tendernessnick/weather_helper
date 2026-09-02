@@ -104,6 +104,22 @@ def check_and_notify(db: Session) -> int:
             "body": (f"{court.name_sc}：{sub.play_at.strftime('%H:%M')} 前后降水概率约 "
                      f"{pop}%，出门前再看一眼临近预报"),
             "url": f"/courts/{court.id}",
+            # The service worker picks the variant matching the device language;
+            # title/body above stay as the legacy fallback.
+            "variants": {
+                "hans": {
+                    "title": "球场下雨风险提醒",
+                    "body": f"{court.name_sc}：{sub.play_at.strftime('%H:%M')} 前后降水概率约 {pop}%，出门前再看一眼临近预报",
+                },
+                "hant": {
+                    "title": "球場下雨風險提醒",
+                    "body": f"{court.name_tc}：{sub.play_at.strftime('%H:%M')} 前後降水概率約 {pop}%，出門前再看一眼臨近預報",
+                },
+                "en": {
+                    "title": "Court rain-risk reminder",
+                    "body": f"{court.name_en}: ~{pop}% rain chance around {sub.play_at.strftime('%H:%M')} — check the nowcast before leaving",
+                },
+            },
         }
         if _send(sub, payload):
             sent += 1
