@@ -100,12 +100,13 @@ export default function CourtList() {
 
       {/* List keeps a dedicated right gutter (pr-8): cards and sticky letter
           headers physically end before the floating A-Z rail, so the rail can
-          never be covered regardless of z-index. */}
+          never be covered regardless of z-index. Letter headers share the
+          exact same width as the court cards (no bleed in either direction). */}
       <div className="pl-4 pr-8 pt-2">
         <ul>
           {activeLetters.map((letter) => (
             <li key={letter} id={`letter-${letter}`} className="scroll-mt-20">
-              <div className="sticky top-[60px] z-10 -ml-4 mb-2 bg-slate-100/95 pl-4 pr-2 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
+              <div className="sticky top-[60px] z-10 mb-2 rounded-md bg-slate-100/95 px-1 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
                 {letter}
               </div>
               <ul className="space-y-2">

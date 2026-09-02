@@ -2,9 +2,22 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
+import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute } from 'workbox-precaching';
+import { registerRoute } from 'workbox-routing';
+import { NetworkFirst } from 'workbox-strategies';
 
-precacheAndRoute(self.__WB_MANIFEST);
+// index.html is deliberately NOT precached: a precached shell would keep
+// serving the previous UI until a second reload. Navigations are network-first
+// (always fresh when online) with the last-seen page cached for offline.
+precacheAndRoute(
+  (self.__WB_MANIFEST as { url: string }[]).filter((e) => !e.url.endsWith('index.html')),
+);
+
+registerRoute(
+  ({ request }) => request.mode === 'navigate',
+  new NetworkFirst({ cacheName: 'pages', networkTimeoutSeconds: 3 }),
+);
 
 self.addEventListener('push', (event: PushEvent) => {
   let payload: { title?: string; body?: string; url?: string } = {};
@@ -14,10 +27,10 @@ self.addEventListener('push', (event: PushEvent) => {
     payload = { body: event.data?.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? '网球天气提醒', {
+    self.registration.showNotification(payload.title ?? '球场下雨风险提醒', {
       body: payload.body ?? '',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       data: { url: payload.url ?? '/' },
     }),
   );
@@ -39,4 +52,4 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   );
 });
 
-export {};
+clientsClaim();

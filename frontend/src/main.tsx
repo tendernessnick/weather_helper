@@ -16,4 +16,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch((err) => {
     console.warn('service worker registration failed', err);
   });
+  // When an updated service worker activates (skipWaiting), reload once so
+  // the user sees the new UI after a single refresh instead of two.
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
 }
