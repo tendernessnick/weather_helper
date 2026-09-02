@@ -28,7 +28,7 @@ ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 RAIN_THRESHOLD = 0.5
 SURVIVAL_LENGTHS = (1, 2, 3, 4)  # booking lengths in hours
 BACKFILL_START = (datetime.now().year - 10, 1)  # (year, month): 10 years back
-FETCH_PAUSE = 1.2  # seconds between archive requests (the archive API 429s fast)
+FETCH_PAUSE = 4.0  # seconds between archive requests (54 one-shot requests total)
 
 
 def _last_key(court_id: str) -> str:
@@ -179,39 +179,13 @@ class Aggregates:
         db.commit()
 
 
-def _ingest_months(db: Session, court: Court, months: list[tuple[int, int]],
-                   client: httpx.Client) -> int:
-    """Fetch + aggregate months in year-sized chunks so an interruption loses
-    at most one chunk; progress is committed per chunk. Chunks are fed as one
-    contiguous series to keep intra-chunk transitions/survival intact."""
-    done = 0
-    for chunk_start in range(0, len(months), 12):
-        chunk = months[chunk_start:chunk_start + 12]
-        agg = Aggregates()
-        times_all, mms_all = [], []
-        ok = True
-        for ym in chunk:
-            start, end = _month_bounds(*ym)
-            hourly = _fetch_period(client, court.lat, court.lon, start, end)
-            if hourly is None:
-                ok = False  # not available yet; retry next scheduled pass
-                break
-            times_all.extend(hourly.get("time", []))
-            mms_all.extend(hourly.get("precipitation", []))
-            time.sleep(FETCH_PAUSE)
-        if not ok or not times_all:
-            break
-        agg.feed(times_all, mms_all)
-        agg.save(db, court.id)
-        db.merge(KvCache(key=_last_key(court.id),
-                         value_json=_month_str(*chunk[-1]), updated_at=hk_now()))
-        db.commit()
-        done += len(chunk)
-    return done
-
-
 def backfill_court(db: Session, court: Court) -> int:
-    """Bring one court up from the 10-year mark to the last complete month."""
+    """Bring one court up from the 10-year mark to the last complete month.
+
+    One request per court for the whole range (87k hourly values, ~1-2MB):
+    the archive API rate-limits per minute, so many small requests are far
+    more likely to 429 than one big one. Progress is per court.
+    """
     row = db.get(KvCache, _last_key(court.id))
     start = _parse_month(row.value_json) if row else BACKFILL_START
     now = hk_now()
@@ -221,12 +195,23 @@ def backfill_court(db: Session, court: Court) -> int:
     months = _months_between(start, end)
     if not months:
         return 0
-    with httpx.Client(timeout=120) as client:
-        done = _ingest_months(db, court, months, client)
-    if done:
-        logger.info("climatology +%d months for %s (through %s)",
-                    done, court.name_en, _month_str(*start))
-    return done
+
+    start_date, end_date = _month_bounds(*months[0])[0], _month_bounds(*months[-1])[1]
+    with httpx.Client(timeout=180) as client:
+        hourly = _fetch_period(client, court.lat, court.lon, start_date, end_date)
+    if hourly is None:
+        logger.warning("archive unavailable for %s (%s~%s)", court.name_en, start_date, end_date)
+        return 0
+    agg = Aggregates()
+    agg.feed(hourly.get("time", []), hourly.get("precipitation", []))
+    agg.save(db, court.id)
+    db.merge(KvCache(key=_last_key(court.id),
+                     value_json=_month_str(*months[-1]), updated_at=hk_now()))
+    db.commit()
+    logger.info("climatology +%d months for %s (through %s)",
+                len(months), court.name_en, _month_str(*months[-1]))
+    time.sleep(FETCH_PAUSE)
+    return len(months)
 
 
 def backfill_all(db: Session, limit: int | None = None) -> int:
