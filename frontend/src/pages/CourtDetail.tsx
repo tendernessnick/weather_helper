@@ -143,10 +143,7 @@ export default function CourtDetail() {
       )}
 
       <NowcastStrip steps={weather.nowcast.steps} fetchedAt={weather.nowcast.fetched_at} />
-      <HourlyBars
-        hourly={weather.hourly}
-        calibrationN={weather.calibration?.basis_n}
-      />
+      <HourlyBars hourly={weather.hourly} />
       {calibration && calibration.basis && (() => {
         const deltas = calibration.mapping
           .map((m) => (m.official_pct - m.corrected * 100) / 100)
