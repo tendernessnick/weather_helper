@@ -1,7 +1,8 @@
 import { getDeviceId } from './device';
 import type {
-  CalibrationInfo, CourtListItem, CourtRankRow, CourtScores, LeadBucket,
-  HourProfileRow, Reminder, ReportStatus, StatsOverview, WeatherResponse,
+  BestResponse, CalibrationInfo, CheckinReport, CourtListItem, CourtRankRow,
+  CourtScores, LeadBucket, HourProfileRow, RecentReport, Reminder,
+  ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
 
 const DEVICE_ID = getDeviceId();
@@ -107,4 +108,22 @@ export const api = {
 
   courtCalibration: (id: string) =>
     request<CalibrationInfo>(`/api/courts/${id}/calibration`),
+
+  recentReports: (id: string) =>
+    request<{ reports: RecentReport[] }>(`/api/courts/${id}/reports/recent`),
+
+  best: (hour?: string) =>
+    request<BestResponse>(`/api/best${hour ? `?hour=${encodeURIComponent(hour)}` : ''}`),
+
+  checkin: (courtId: string, durationHours: number) =>
+    request<{ status: string }>('/api/checkins', {
+      method: 'POST',
+      body: JSON.stringify({ court_id: courtId, duration_hours: durationHours }),
+    }),
+
+  myReport: () => request<CheckinReport>('/api/checkins/report'),
+
+  peekCode: (code: string) =>
+    request<{ exists: boolean; checkins: number; reports: number }>(
+      `/api/checkins/peek?code=${encodeURIComponent(code)}`),
 };

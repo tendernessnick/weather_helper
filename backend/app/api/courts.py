@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
 from ..db import get_db
-from ..models import Climatology, Court, ForecastSnapshot, NowcastSnapshot
-from ..services import analytics, hko_nowcast, verification
+from ..models import (Climatology, Court, ForecastSnapshot, NowcastSnapshot,
+                      UserReport)
+from ..services import analytics, comfort, hko_nowcast, verification
 from ..services.hko import get_cached_current_weather
 
 router = APIRouter(tags=["courts"])
@@ -118,6 +119,29 @@ def court_scores(court_id: str, window_days: int | None = Query(default=None, ge
     return verification.compute_court_scores(db, court_id, window_days)
 
 
+@router.get("/courts/{court_id}/reports/recent")
+def recent_reports(court_id: str, db: Session = Depends(get_db)):
+    """Crowd reports at this court within the last 3 hours (newest first)."""
+    if db.get(Court, court_id) is None:
+        raise HTTPException(status_code=404, detail="court not found")
+    since = hk_now() - timedelta(hours=3)
+    rows = db.query(UserReport).filter(
+        UserReport.court_id == court_id,
+        UserReport.status == "accepted",
+        UserReport.created_at >= since,
+    ).order_by(UserReport.created_at.desc()).all()
+    return {
+        "reports": [
+            {
+                "reported_at": r.created_at.isoformat(),
+                "intensity": r.intensity,
+                "was_raining": r.was_raining,
+            }
+            for r in rows
+        ]
+    }
+
+
 @router.get("/courts/{court_id}/calibration")
 def court_calibration(court_id: str, db: Session = Depends(get_db)):
     if db.get(Court, court_id) is None:
@@ -167,6 +191,9 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
             "mm": s.precip_mm,
             "weather_code": s.weather_code,
             "wind_kmh": s.wind_kmh,
+            "apparent_temp": s.apparent_temp,
+            "humidity": s.humidity,
+            "comfort": comfort.comfort_level(s.apparent_temp, s.wind_kmh),
         })
 
     return {

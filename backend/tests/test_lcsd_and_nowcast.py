@@ -58,3 +58,19 @@ def test_parse_grid_and_nearest():
     assert _nearest_mm(near, 22.20, 114.20) == 1.50
     # Court closer to the first cell.
     assert _nearest_mm(near, 22.11, 114.11) == 0.00
+
+
+def test_downsample_max_per_cell_and_wet_only():
+    from app.services.hko_nowcast import downsample
+    grids = {
+        datetime(2026, 9, 2, 12, 42): [
+            (22.201, 114.199, 1.2),   # same 0.02 cell as below
+            (22.209, 114.205, 2.4),   # -> max 2.4 kept
+            (22.30, 114.30, 0.03),    # below wet threshold -> dropped
+            (22.40, 114.40, 0.0),     # dry -> dropped
+        ],
+    }
+    steps = downsample(grids)
+    assert len(steps) == 1
+    cells = {(round(c[0], 3), round(c[1], 3)): c[2] for c in steps[0]["cells"]}
+    assert cells == {(22.2, 114.2): 2.4}

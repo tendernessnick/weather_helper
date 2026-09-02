@@ -14,7 +14,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
-from ..models import Court, NowcastSnapshot
+from ..models import Court, KvCache, NowcastSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,31 @@ COL_ENDING = "Ending Date and Time (in Hong Kong Time)"
 COL_LAT = "Latitude (degree)"
 COL_LON = "Longitude (degree)"
 COL_MM = "Half-hourly Nowcast Accumulated Rainfall (mm)"
+
+# Map downsample: round to this grid step and keep only wet cells
+GRID_STEP = 0.02
+WET_MM = 0.05
+
+
+def downsample(grids: dict[datetime, list[tuple[float, float, float]]]) -> list[dict]:
+    """Compact the full grid to a coarse wet-cell list per forecast step.
+
+    Used by the rain map: max mm per 0.02° cell, dry cells dropped, so the
+    payload stays a few KB even though the source grid is ~58k points.
+    """
+    steps = []
+    for ending in sorted(grids):
+        cells: dict[tuple[float, float], float] = {}
+        for lat, lon, mm in grids[ending]:
+            key = (round(round(lat / GRID_STEP) * GRID_STEP, 3),
+                   round(round(lon / GRID_STEP) * GRID_STEP, 3))
+            if mm > cells.get(key, 0.0):
+                cells[key] = mm
+        steps.append({
+            "ending": ending.isoformat(),
+            "cells": [[k[0], k[1], round(v, 2)] for k, v in cells.items() if v >= WET_MM],
+        })
+    return steps
 
 
 def parse_grid(text: str) -> dict[datetime, list[tuple[float, float, float]]]:
@@ -65,6 +90,13 @@ def ingest_nowcast(db: Session) -> int:
     courts = db.query(Court).all()
     fetched_at = hk_now()
     n = 0
+    # Rain map payload: coarse wet cells per step, latest fetch only.
+    db.merge(KvCache(
+        key="f3_grid",
+        value_json=json.dumps({"fetched_at": fetched_at.isoformat(),
+                               "steps": downsample(grids)}),
+        updated_at=fetched_at,
+    ))
     # fetched_at is fresh on every run, so (court_id, fetched_at) never
     # collides; plain inserts keep the full 12-minute history.
     for court in courts:

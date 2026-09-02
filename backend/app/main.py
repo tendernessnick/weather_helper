@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import courts, reports, stats, subscriptions
+from .api import best, checkins, courts, map as map_api, reports, stats, subscriptions
 from .config import settings
 from .db import SessionLocal, init_db
 from .scheduler import (_job_ingest_current, _job_ingest_nowcast,
@@ -59,6 +59,9 @@ app.include_router(courts.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(subscriptions.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+app.include_router(best.router, prefix="/api")
+app.include_router(map_api.router, prefix="/api")
+app.include_router(checkins.router, prefix="/api")
 
 
 @app.get("/api/health")

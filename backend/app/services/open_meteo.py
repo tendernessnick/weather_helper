@@ -10,7 +10,8 @@ from ..models import Court, ForecastLead, ForecastSnapshot
 
 logger = logging.getLogger(__name__)
 
-HOURLY_VARS = "precipitation_probability,precipitation,weather_code,wind_speed_10m"
+HOURLY_VARS = ("precipitation_probability,precipitation,weather_code,"
+               "wind_speed_10m,apparent_temperature,relative_humidity_2m")
 BATCH_SIZE = 20  # locations per request; Open-Meteo returns results in input order
 FORECAST_DAYS = 3
 
@@ -63,6 +64,8 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
         mm = hourly.get("precipitation", [0.0] * len(times))[i] or 0.0
         code = hourly.get("weather_code", [0] * len(times))[i] or 0
         wind = hourly.get("wind_speed_10m", [0.0] * len(times))[i] or 0.0
+        atemp = hourly.get("apparent_temperature", [None] * len(times))[i]
+        humid = hourly.get("relative_humidity_2m", [None] * len(times))[i]
         row = existing.get(target)
         if row is None:
             row = ForecastSnapshot(
@@ -73,6 +76,8 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
         row.precip_mm = float(mm)
         row.weather_code = int(code)
         row.wind_kmh = float(wind)
+        row.apparent_temp = None if atemp is None else float(atemp)
+        row.humidity = None if humid is None else float(humid)
         row.fetched_at = fetched_at
         n += 1
 

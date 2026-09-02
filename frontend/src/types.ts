@@ -37,6 +37,11 @@ export interface NowcastStep {
   mm: number;
 }
 
+export interface ComfortInfo {
+  level: 'good' | 'fair' | 'poor' | 'severe' | null;
+  note: string;
+}
+
 export interface HourlyItem {
   hour: string;
   pop: number;
@@ -46,6 +51,9 @@ export interface HourlyItem {
   mm: number;
   weather_code: number;
   wind_kmh: number;
+  apparent_temp?: number | null;
+  humidity?: number | null;
+  comfort?: ComfortInfo;
 }
 
 export interface PersistenceCard {
@@ -108,6 +116,49 @@ export interface ReportStatus {
   cooldown_remaining_sec: number;
   reports_today: number;
   daily_limit: number;
+}
+
+export interface RecentReport {
+  reported_at: string;
+  intensity: 'none' | 'light' | 'moderate' | 'heavy';
+  was_raining: boolean;
+}
+
+export interface CourtRankSimple {
+  court_id: string;
+  name_sc: string;
+  district_tc: string;
+  lat: number;
+  lon: number;
+  pop: number;
+  corrected_pop: number;
+  zone: 'go' | 'edge' | 'no';
+}
+
+export interface BestResponse {
+  hour: string;
+  city_median_pop: number | null;
+  courts: CourtRankSimple[];
+  hours: { hour: string; city_median_pop: number }[];
+}
+
+export interface CheckinSession {
+  played_at: string;
+  court_name: string;
+  duration_hours: number;
+  rain_hours: number;
+  max_mm: number;
+  forecast_pop: number | null;
+  verdict: string;
+  tag: 'win' | 'clean' | 'ambush' | 'hit';
+  observed: number;
+}
+
+export interface CheckinReport {
+  total: number;
+  rain_sessions: number;
+  gamble_wins: number;
+  sessions: CheckinSession[];
 }
 
 export interface Reminder {

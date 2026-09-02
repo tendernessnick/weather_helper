@@ -31,6 +31,13 @@ function hourLabel(iso: string): string {
   return d.getHours().toString().padStart(2, '0');
 }
 
+const COMFORT_CHIP: Record<string, string> = {
+  good: 'bg-[#E8F8ED] text-[#1B7A3D]',
+  fair: 'bg-[#FFF4E5] text-[#8A6100]',
+  poor: 'bg-[#FFE9DC] text-[#B3541E]',
+  severe: 'bg-[#FFE5E5] text-[#C0392B]',
+};
+
 /** Plain-language conclusion from the three numbers of one hour. */
 function verdictFor(item: HourlyItem): string {
   const official = item.pop;
@@ -172,8 +179,18 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
               <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
                 💡 {verdictFor(sel)}
               </p>
+              {sel.comfort && sel.comfort.level && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+                  <span className={`rounded-full px-2 py-0.5 font-semibold ${COMFORT_CHIP[sel.comfort.level]}`}>
+                    打球舒适度
+                  </span>
+                  <span className="text-slate-600">{sel.comfort.note}</span>
+                </p>
+              )}
               <p className="mt-1 text-[9px] text-slate-400">
                 雨量 {sel.mm.toFixed(1)}mm · 风 {sel.wind_kmh.toFixed(0)}km/h
+                {sel.apparent_temp != null && <> · 体感 {sel.apparent_temp.toFixed(0)}°C</>}
+                {sel.humidity != null && <> · 湿度 {sel.humidity.toFixed(0)}%</>}
                 {hasStats ? '' : ' · 校正数据积累中，黑点暂等于官方值'}
               </p>
             </div>

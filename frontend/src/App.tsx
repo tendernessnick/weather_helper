@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
+import Best from './pages/Best';
 import Insights from './pages/Insights';
 import ReminderPoller from './components/ReminderPoller';
 import Icon from './components/Icon';
@@ -8,7 +9,8 @@ import Icon from './components/Icon';
 function SegmentedTabs() {
   const tabs = [
     { to: '/', label: '球场' },
-    { to: '/insights', label: '数据洞察' },
+    { to: '/best', label: '去哪打' },
+    { to: '/insights', label: '洞察' },
   ];
   return (
     <nav className="flex rounded-[10px] bg-[#E9E9EB] p-[2px] text-[13px] font-semibold">
@@ -54,6 +56,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<CourtList />} />
           <Route path="/courts/:id" element={<CourtDetail />} />
+          <Route path="/best" element={<Best />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="*" element={
             <div className="p-8 text-center text-sm text-slate-500">页面不存在</div>

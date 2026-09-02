@@ -3,6 +3,7 @@ import { api } from '../api';
 import type {
   CourtRankRow, HourProfileRow, LeadBucket, StatsOverview,
 } from '../types';
+import MyReportCard from '../components/MyReportCard';
 
 function pct(v: number | null | undefined): string {
   return v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`;
@@ -277,7 +278,8 @@ export default function Insights() {
 
   return (
     <div className="pb-4">
-      <div className="ios-card mx-4 mt-4 p-3">
+      <MyReportCard />
+      <div className="ios-card mx-4 mt-3 p-3">
         <button
           onClick={() => setGuideOpen((v) => !v)}
           className="flex w-full items-center justify-between text-left text-[12px] font-bold text-slate-800"

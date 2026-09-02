@@ -31,3 +31,27 @@ def get_db():
 def init_db() -> None:
     from . import models  # noqa: F401  (register tables before create_all)
     Base.metadata.create_all(engine)
+    _migrate(engine)
+
+
+def _migrate(target_engine) -> None:
+    """Idempotent column additions for existing SQLite databases.
+
+    create_all never alters an existing table, so columns added after a
+    deployment need explicit ALTER TABLE with a PRAGMA guard.
+    """
+    from sqlalchemy import text
+
+    wanted = {
+        "forecast_snapshots": [
+            ("apparent_temp", "FLOAT"),
+            ("humidity", "FLOAT"),
+        ],
+    }
+    with target_engine.begin() as conn:
+        for table, columns in wanted.items():
+            existing = {row[1] for row in conn.execute(
+                text(f"PRAGMA table_info({table})"))}
+            for name, decl in columns:
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {decl}"))

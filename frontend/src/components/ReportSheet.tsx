@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import Icon from './Icon';
+import RecentReports from './RecentReports';
 import type { Court } from '../types';
 
 const INTENSITIES = [
@@ -118,6 +119,8 @@ export default function ReportSheet({ court }: { court: Court }) {
           ))}
         </div>
       )}
+
+      <RecentReports courtId={court.id} />
 
       {message && (
         <p className={`mt-2 text-xs ${messageTone === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>

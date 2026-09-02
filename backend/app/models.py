@@ -46,6 +46,8 @@ class ForecastSnapshot(Base):
     precip_mm: Mapped[float] = mapped_column(Float, default=0.0)
     weather_code: Mapped[int] = mapped_column(Integer, default=0)
     wind_kmh: Mapped[float] = mapped_column(Float, default=0.0)
+    apparent_temp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    humidity: Mapped[float | None] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 
 
@@ -173,6 +175,24 @@ class Persistence(Base):
     dry_to_wet: Mapped[int] = mapped_column(Integer, default=0)
     dry_to_dry: Mapped[int] = mapped_column(Integer, default=0)
     survival_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class CheckIn(Base):
+    """A player's "I played here" log entry (personal, keyed by device_id).
+
+    Personal history only - never mixed into public scoring pools. The
+    retrospective report joins each check-in against our own observation
+    archive to tell the weather story of that session.
+    """
+
+    __tablename__ = "checkins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    court_id: Mapped[str] = mapped_column(String(32), index=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    played_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    duration_hours: Mapped[float] = mapped_column(Float, default=1.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
 class KvCache(Base):

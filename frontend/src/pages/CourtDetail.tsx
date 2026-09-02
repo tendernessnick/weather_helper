@@ -8,6 +8,7 @@ import ScoreCard from '../components/ScoreCard';
 import ReportSheet from '../components/ReportSheet';
 import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
+import CheckInCard from '../components/CheckInCard';
 import Icon from '../components/Icon';
 
 /** Plain-language verdict for the next few hours, computed from zones. */
@@ -47,6 +48,31 @@ function VerdictBanner({ weather }: { weather: WeatherResponse }) {
       <p className={`text-[13px] font-semibold leading-relaxed ${look.text}`}>
         {sentence}
       </p>
+    </div>
+  );
+}
+
+/** Heat advisory when any of the next 6 hours is poor/severe comfort. */
+function ComfortBanner({ weather }: { weather: WeatherResponse }) {
+  const hours = weather.hourly.slice(0, 6);
+  const worst = hours.find((h) => h.comfort?.level === 'severe')
+    ?? hours.find((h) => h.comfort?.level === 'poor');
+  if (!worst?.comfort) return null;
+  const hh = new Date(worst.hour).getHours().toString().padStart(2, '0');
+  const severe = worst.comfort.level === 'severe';
+  return (
+    <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-white ${severe ? 'bg-[#FF3B30]' : 'bg-[#FF6B00]'}`}>
+        <Icon name="sun" className="h-5 w-5" />
+      </span>
+      <div>
+        <p className={`text-[12px] font-bold ${severe ? 'text-[#B3261E]' : 'text-[#8A4B00]'}`}>
+          {severe ? '酷热警告' : '偏热提醒'}（{hh}:00 前后最热）
+        </p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-[#8A6100]/90">
+          {worst.comfort.note}。多补水、挑早晚时段。
+        </p>
+      </div>
     </div>
   );
 }
@@ -146,6 +172,7 @@ export default function CourtDetail() {
       )}
 
       <VerdictBanner weather={weather} />
+      <ComfortBanner weather={weather} />
 
       {microclimate && (
         <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
@@ -199,6 +226,7 @@ export default function CourtDetail() {
       })()}
       {weather.persistence && <PersistenceCard data={weather.persistence} />}
       {scores && <ScoreCard scores={scores} />}
+      <CheckInCard court={court} />
       <ReportSheet court={court} />
       <SubscribeBox court={court} />
     </div>
