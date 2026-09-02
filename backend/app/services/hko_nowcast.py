@@ -65,12 +65,14 @@ def ingest_nowcast(db: Session) -> int:
     courts = db.query(Court).all()
     fetched_at = hk_now()
     n = 0
+    # fetched_at is fresh on every run, so (court_id, fetched_at) never
+    # collides; plain inserts keep the full 12-minute history.
     for court in courts:
         steps = []
         for ending in sorted(grids):
             mm = _nearest_mm(grids[ending], court.lat, court.lon)
             steps.append({"ending": ending.isoformat(), "mm": mm})
-        db.merge(NowcastSnapshot(
+        db.add(NowcastSnapshot(
             court_id=court.id,
             fetched_at=fetched_at,
             steps_json=json.dumps(steps),

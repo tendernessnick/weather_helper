@@ -73,19 +73,27 @@ def ingest_station_rainfall(db: Session) -> int:
 
     courts = db.query(Court).all()
     n = 0
+    # merge() cannot upsert by the composite unique key (court, observed_hour);
+    # a fresh 15-min run within the same hour must update the existing row.
+    existing = {
+        row.court_id: row
+        for row in db.query(Observation)
+        .filter(Observation.observed_hour == observed_hour).all()
+    }
     for court in courts:
         nearest = _nearest_station_with_value(court.lat, court.lon, values)
         if nearest is None:
             continue
         station_name, mm = nearest
-        db.merge(Observation(
-            court_id=court.id,
-            observed_hour=observed_hour,
-            station_name=station_name,
-            rainfall_mm=mm,
-            rain=mm >= settings.rain_mm_threshold,
-            fetched_at=fetched_at,
-        ))
+        row = existing.get(court.id)
+        if row is None:
+            row = Observation(court_id=court.id, observed_hour=observed_hour)
+            db.add(row)
+            existing[court.id] = row
+        row.station_name = station_name
+        row.rainfall_mm = mm
+        row.rain = mm >= settings.rain_mm_threshold
+        row.fetched_at = fetched_at
         n += 1
     db.commit()
     logger.info("station rainfall ingested for %d courts, hour=%s", n, observed_hour)

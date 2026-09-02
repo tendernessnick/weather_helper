@@ -18,7 +18,7 @@
 ## 架构
 
 ```
-├── backend/                Python 3.12 + FastAPI + SQLAlchemy + SQLite + APScheduler
+├── backend/                Python 3.12 + FastAPI + SQLAlchemy + SQLite（自写守护线程调度器）
 │   ├── app/api/            courts / reports / subscriptions 路由
 │   ├── app/services/       数据抓取(HKO/Open-Meteo/LCSD)、评分引擎、防刷、推送
 │   └── tests/              21 个 pytest（评分/围栏/解析逻辑）

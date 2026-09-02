@@ -29,18 +29,19 @@ def create_subscription(
     if body.play_at <= hk_now():
         raise HTTPException(status_code=400, detail="play_at must be in the future")
 
-    sub = PushSubscription(
-        device_id=x_device_id.strip(),
-        endpoint=body.subscription.endpoint,
-        p256dh=body.subscription.keys.p256dh,
-        auth=body.subscription.keys.auth,
-        court_id=body.court_id,
-        play_at=body.play_at,
-        hours_before=body.hours_before,
-        notified_at=None,
-        created_at=hk_now(),
-    )
-    db.merge(sub)  # endpoint is the unique key: resubscribe updates in place
+    sub = db.query(PushSubscription).filter(
+        PushSubscription.endpoint == body.subscription.endpoint).first()
+    if sub is None:
+        sub = PushSubscription(endpoint=body.subscription.endpoint)
+        db.add(sub)
+    sub.device_id = x_device_id.strip()
+    sub.p256dh = body.subscription.keys.p256dh
+    sub.auth = body.subscription.keys.auth
+    sub.court_id = body.court_id
+    sub.play_at = body.play_at
+    sub.hours_before = body.hours_before
+    sub.notified_at = None
+    sub.created_at = hk_now()
     db.commit()
     return {"status": "ok"}
 

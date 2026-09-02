@@ -1,13 +1,15 @@
-"""APScheduler wiring: periodic ingest, nightly purge, push checks.
+"""Tiny in-process scheduler: one daemon thread, per-job fixed intervals.
 
-The scheduler runs inside the web process (single long-running service), so no
-external cron is needed. All jobs swallow exceptions and log - one failed fetch
-must never kill the loop.
+Deliberately replaces APScheduler: on this stack (Python 3.14) its executor
+thread was observed to stop silently a few minutes after start. A plain loop
+with monotonic clocks is fully predictable, has no dependency, and matches the
+single long-running-service deployment. Job exceptions are logged and swallowed.
 """
 import logging
+import threading
+import time
 from datetime import timedelta
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import delete
 
 from .config import hk_now, settings
@@ -49,33 +51,61 @@ def _job_purge():
         db.execute(delete(ForecastSnapshot).where(ForecastSnapshot.target_hour < cutoff))
         db.execute(delete(NowcastSnapshot).where(NowcastSnapshot.fetched_at < cutoff))
         db.execute(delete(Observation).where(Observation.observed_hour < cutoff))
-        # Keep rejected reports out of storage; accepted ones are part of the audit trail.
+        # Keep accepted reports as an audit trail; drop rejected ones with the window.
         db.execute(delete(UserReport).where(
             UserReport.created_at < cutoff, UserReport.status != "accepted"))
         db.commit()
-    logger.info("purged rows older than %s", cutoff)
 
 
-def _run(fn):
-    def wrapped():
-        try:
-            fn()
-        except Exception:  # noqa: BLE001 - scheduler jobs must never crash the app
-            logger.exception("scheduled job %s failed", fn.__name__)
-    return wrapped
+JOBS = [
+    # (id, callable, interval_seconds)
+    ("ingest_nowcast", _job_ingest_nowcast, 12 * 60),
+    ("ingest_rainfall", _job_ingest_rainfall, 15 * 60),
+    ("ingest_current", _job_ingest_current, 15 * 60),
+    ("ingest_open_meteo", _job_ingest_open_meteo, 60 * 60),
+    ("push_check", _job_push_check, 5 * 60),
+    ("purge", _job_purge, 24 * 3600),
+]
 
 
-def create_scheduler() -> BackgroundScheduler:
-    sched = BackgroundScheduler(timezone="Asia/Hong_Kong")
-    sched.add_job(_run(_job_ingest_nowcast), "interval", minutes=12,
-                  id="ingest_nowcast")
-    sched.add_job(_run(_job_ingest_rainfall), "interval", minutes=15,
-                  id="ingest_rainfall")
-    sched.add_job(_run(_job_ingest_current), "interval", minutes=15,
-                  id="ingest_current")
-    sched.add_job(_run(_job_ingest_open_meteo), "cron", hour="*", minute=5,
-                  id="ingest_open_meteo")
-    sched.add_job(_run(_job_push_check), "interval", minutes=5,
-                  id="push_check")
-    sched.add_job(_run(_job_purge), "cron", hour=3, minute=30, id="purge")
-    return sched
+class SimpleScheduler:
+    def __init__(self) -> None:
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._next: dict[str, float] = {}
+
+    def start(self) -> None:
+        now = time.monotonic()
+        # First run of every job shortly after boot, staggered to spread load.
+        for i, (job_id, _fn, _interval) in enumerate(JOBS):
+            self._next[job_id] = now + 5 + i * 3
+        self._thread = threading.Thread(target=self._loop, name="scheduler", daemon=True)
+        self._thread.start()
+
+    def shutdown(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+
+    def _loop(self) -> None:
+        logger.info("simple scheduler started: %s", {j[0]: j[2] for j in JOBS})
+        while not self._stop.wait(timeout=1.0):
+            try:
+                self._tick()
+            except Exception:  # noqa: BLE001 - the loop itself must survive
+                logger.exception("scheduler tick failed")
+        logger.info("simple scheduler stopped")
+
+    def _tick(self) -> None:
+        now = time.monotonic()
+        for job_id, fn, interval in JOBS:
+            if now >= self._next[job_id]:
+                try:
+                    fn()
+                except Exception:  # noqa: BLE001
+                    logger.exception("job %s failed", job_id)
+                self._next[job_id] = time.monotonic() + interval
+
+
+def create_scheduler() -> SimpleScheduler:
+    return SimpleScheduler()

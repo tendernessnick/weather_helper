@@ -19,8 +19,21 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
     times = hourly.get("time", [])
     n = 0
     now_hour = floor_hour(hk_now())
-    for i, t in enumerate(times):
-        target = t  # naive HK local time from the API (timezone=Asia/Hong_Kong)
+    kept = [t for t in times if t > now_hour]
+    if not kept:
+        return 0
+
+    # merge() cannot upsert by the composite unique key (court, target_hour),
+    # so load the existing rows for this fetch range and update in place.
+    existing = {
+        row.target_hour: row
+        for row in db.query(ForecastSnapshot)
+        .filter(ForecastSnapshot.court_id == court_id,
+                ForecastSnapshot.target_hour >= min(kept),
+                ForecastSnapshot.target_hour <= max(kept))
+        .all()
+    }
+    for i, target in enumerate(times):
         # Freeze hours that already started: each hour keeps the forecast issued
         # ~1h before it began - that is the version a user saw when deciding,
         # and the version verification later scores against reality.
@@ -32,16 +45,17 @@ def _upsert_court(db: Session, court_id: str, hourly: dict, fetched_at) -> int:
         mm = hourly.get("precipitation", [0.0] * len(times))[i] or 0.0
         code = hourly.get("weather_code", [0] * len(times))[i] or 0
         wind = hourly.get("wind_speed_10m", [0.0] * len(times))[i] or 0.0
-        db.merge(ForecastSnapshot(
-            court_id=court_id,
-            source="open_meteo",
-            target_hour=target,
-            precip_prob=int(prob),
-            precip_mm=float(mm),
-            weather_code=int(code),
-            wind_kmh=float(wind),
-            fetched_at=fetched_at,
-        ))
+        row = existing.get(target)
+        if row is None:
+            row = ForecastSnapshot(
+                court_id=court_id, source="open_meteo", target_hour=target)
+            db.add(row)
+            existing[target] = row
+        row.precip_prob = int(prob)
+        row.precip_mm = float(mm)
+        row.weather_code = int(code)
+        row.wind_kmh = float(wind)
+        row.fetched_at = fetched_at
         n += 1
     return n
 
