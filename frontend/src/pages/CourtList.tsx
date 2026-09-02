@@ -102,7 +102,7 @@ export default function CourtList() {
         <ul className="flex-1">
           {activeLetters.map((letter) => (
             <li key={letter} id={`letter-${letter}`} className="scroll-mt-20">
-              <div className="sticky top-[60px] z-10 -mx-4 bg-slate-100/95 px-4 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
+              <div className="sticky top-[60px] z-10 -ml-4 bg-slate-100/95 pl-4 pr-2 py-1 text-xs font-bold text-emerald-700 backdrop-blur">
                 {letter}
               </div>
               <ul>
