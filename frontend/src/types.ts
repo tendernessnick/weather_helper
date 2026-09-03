@@ -256,3 +256,54 @@ export interface CalibrationInfo {
   };
   zones: { green_max: number; amber_max: number };
 }
+
+// --- admin dashboard ---
+
+export interface AdminSource {
+  key: 'nowcast' | 'rainfall' | 'current' | 'forecast';
+  last_data_at: string | null;
+  age_sec: number | null;
+  interval_sec: number;
+  status: 'ok' | 'warn' | 'stale' | 'missing';
+}
+
+export interface AdminJob {
+  interval_sec: number;
+  next_run_in_sec: number;
+  runs: number;
+  failures: number;
+  last_start: string | null;
+  last_ok: string | null;
+  last_duration_ms: number | null;
+  last_error: string | null;
+}
+
+export interface AdminReportRow {
+  id: number;
+  court_id: string;
+  court_name_en: string;
+  court_name_tc: string;
+  court_name_sc: string;
+  district: string;
+  intensity: 'none' | 'light' | 'moderate' | 'heavy';
+  was_raining: boolean;
+  status: string;
+  distance_m: number | null;
+  accuracy_m: number | null;
+  device_id: string;
+  created_at: string;
+}
+
+export interface AdminOverview {
+  server_now: string;
+  uptime_sec: number;
+  sources: AdminSource[];
+  jobs: Record<string, AdminJob>;
+  reports_today: { total: number; accepted: number; by_status: Record<string, number> };
+  reports_trend_7d: { date: string; count: number }[];
+  recent_reports: AdminReportRow[];
+  checkins: { today: number; week: number; total: number };
+  subscriptions: { web_push: number; polling: number };
+  devices_7d: number;
+  db: Record<string, string | number | null>;
+}

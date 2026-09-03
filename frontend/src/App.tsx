@@ -3,6 +3,7 @@ import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
 import Best from './pages/Best';
 import Insights from './pages/Insights';
+import Admin from './pages/Admin';
 import ReminderPoller from './components/ReminderPoller';
 import Icon from './components/Icon';
 import { LANG_META, useLang, useT } from './i18n';
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="/courts/:id" element={<CourtDetail />} />
           <Route path="/best" element={<Best />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={
             <div className="p-8 text-center text-sm text-slate-500">{t('app.404')}</div>
           } />

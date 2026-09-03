@@ -1,6 +1,6 @@
 import { getDeviceId } from './device';
 import type {
-  BestResponse, CalibrationInfo, CheckinReport, CourtListItem, CourtRankRow,
+  AdminOverview, BestResponse, CalibrationInfo, CheckinReport, CourtListItem, CourtRankRow,
   CourtScores, LeadBucket, HourProfileRow, RecentReport, Reminder,
   ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
@@ -126,4 +126,9 @@ export const api = {
   peekCode: (code: string) =>
     request<{ exists: boolean; checkins: number; reports: number }>(
       `/api/checkins/peek?code=${encodeURIComponent(code)}`),
+
+  adminOverview: (token: string) =>
+    request<AdminOverview>('/api/admin/overview', {
+      headers: { 'X-Admin-Token': token },
+    }),
 };

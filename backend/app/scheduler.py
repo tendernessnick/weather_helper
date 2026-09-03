@@ -82,6 +82,9 @@ class SimpleScheduler:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._next: dict[str, float] = {}
+        # Per-job run log for the admin dashboard; plain dict writes from the
+        # scheduler thread, read by the API thread - safe under the GIL.
+        self._status: dict[str, dict] = {}
 
     def start(self) -> None:
         now = time.monotonic()
@@ -96,6 +99,20 @@ class SimpleScheduler:
         if self._thread is not None:
             self._thread.join(timeout=5)
 
+    def status(self) -> dict[str, dict]:
+        """Serializable run state per job: when it last ran/failed, what broke."""
+        now = time.monotonic()
+        blank = {"runs": 0, "failures": 0, "last_start": None, "last_ok": None,
+                 "last_duration_ms": None, "last_error": None}
+        out: dict[str, dict] = {}
+        for job_id, _fn, interval in JOBS:
+            out[job_id] = {
+                **blank, **self._status.get(job_id, {}),
+                "interval_sec": interval,
+                "next_run_in_sec": max(0, round(self._next.get(job_id, now) - now)),
+            }
+        return out
+
     def _loop(self) -> None:
         logger.info("simple scheduler started: %s", {j[0]: j[2] for j in JOBS})
         while not self._stop.wait(timeout=1.0):
@@ -109,12 +126,31 @@ class SimpleScheduler:
         now = time.monotonic()
         for job_id, fn, interval in JOBS:
             if now >= self._next[job_id]:
+                started = hk_now()
+                # Record the start before running: a long job (e.g. the climate
+                # top-up takes minutes) must show as in-flight, not "never ran".
+                entry = self._status.setdefault(
+                    job_id, {"runs": 0, "failures": 0, "last_start": None,
+                             "last_ok": None, "last_duration_ms": None,
+                             "last_error": None})
+                entry["last_start"] = started.isoformat(timespec="seconds")
+                t0 = time.monotonic()
+                error: str | None = None
                 try:
                     fn()
-                except Exception:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001
                     logger.exception("job %s failed", job_id)
+                    error = f"{type(exc).__name__}: {exc}"[:300]
+                entry["runs"] += 1
+                entry["last_duration_ms"] = round((time.monotonic() - t0) * 1000)
+                if error is None:
+                    entry["last_ok"] = started.isoformat(timespec="seconds")
+                    entry["last_error"] = None
+                else:
+                    entry["failures"] += 1
+                    entry["last_error"] = error
                 self._next[job_id] = time.monotonic() + interval
 
 
-def create_scheduler() -> SimpleScheduler:
-    return SimpleScheduler()
+# Shared instance: main.py starts it at app startup, the admin API reads status.
+scheduler = SimpleScheduler()

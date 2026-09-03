@@ -87,6 +87,7 @@ cd backend && uv run pytest -q
 | `POP_RAIN_THRESHOLD` | `50` | 概率≥此值记为"预报有雨"；推送触发线 |
 | `WINDOW_DAYS` / `MIN_SAMPLES` | `30` / `20` | 评分窗口与最小样本 |
 | `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | 空 | Web Push 密钥（生成：`npx web-push generate-vapid-keys`） |
+| `ADMIN_TOKEN` | 空 | 后台管理看板（`/admin`）的访问令牌，不设置则后台 API 返回 503 |
 | `CORS_ORIGINS` | `*` | 跨域白名单 |
 
 ## 部署
@@ -110,6 +111,7 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
    | `DATABASE_URL` | `sqlite:////data/weather.db` |
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `backend/.env` 里的两个值（或 `npx web-push generate-vapid-keys` 重新生成） |
    | `VAPID_SUBJECT` | `mailto:你的邮箱` |
+   | `ADMIN_TOKEN` | 随机串（如 `python -c "import uuid; print(uuid.uuid4())"`），后台看板访问令牌 |
 
 4. 服务右上角 **… → Attach Volume** → 挂载路径填 `/data`（保存 SQLite 数据库，重部署不丢数据）
 5. **Settings → Networking → Generate Domain** → 端口填 `8000` → 得到 `https://xxx.up.railway.app`（自动 HTTPS，PWA 安装与 Web Push 可用）
@@ -125,6 +127,17 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 本地没有 Docker 也能部署——构建全部在 Railway 云端完成。
 
+## 后台管理看板（/admin）
+
+仅站长可见的运营看板，凭令牌进入（浏览器打开 `https://你的域名/admin`，输入 `ADMIN_TOKEN` 的值，令牌只存在你浏览器的 localStorage，不会出现在 URL 里）。看板 60 秒自动刷新，内容包括：
+
+- **数据抓取新鲜度**：每个数据源（临近预报 / 雨量观测 / 当前天气 / 逐小时预报）最新一条数据距今多久，绿=按时、黄=略迟、红=停滞
+- **定时任务**：7 个后台任务的运行次数、失败次数、最近一次成功时间、下次运行倒计时、最近报错内容
+- **今日上报**：总数 / 已采纳 / 被拒（按拒绝原因分解），以及近 7 天采纳上报趋势
+- **最新上报流**：最近 50 条上报（含被拒），球场可点进详情页，可按"全部 / 已采纳 / 被拒"筛选
+- **用户活跃**：打卡（今日 / 7 天 / 累计）、7 天活跃设备数、推送与轮询订阅数
+- **数据库**：文件大小、创建时间（重部署后变新 = 卷丢了）、各表行数——即 `/api/health` 探针的可视化
+
 ## API 一览
 
 - `GET /api/courts?search=&prefix=A` 球场列表（含未来 2h 降雨徽章、可信度摘要）
@@ -133,6 +146,7 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `POST /api/reports`（Header `X-Device-ID: <uuid>`）到场实况上报
 - `GET /api/reports/status?court_id=` 上报冷却/配额状态
 - `GET /api/push/public-key` · `POST /api/subscriptions` · `DELETE /api/subscriptions?endpoint=`
+- `GET /api/admin/overview`（Header `X-Admin-Token`）后台看板聚合数据（数据新鲜度 / 任务状态 / 上报流 / 行数）
 
 ## 二期方向
 
