@@ -6,7 +6,7 @@ import Icon from './Icon';
 import { useLang } from '../i18n';
 import type { TKey } from '../i18n';
 
-// HK display bbox (covers all 54 courts plus margin)
+// HK display bbox (covers all courts plus margin)
 const LAT0 = 22.14, LAT1 = 22.56, LON0 = 113.82, LON1 = 114.45;
 const W = 340, H = Math.round(W * (LAT1 - LAT0) / (LON1 - LON0) * 0.82);
 // one 0.02° grid cell in viewBox units (~10.8 x 8.9) — cells render at full footprint
