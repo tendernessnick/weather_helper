@@ -146,7 +146,11 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `POST /api/reports`（Header `X-Device-ID: <uuid>`）到场实况上报
 - `GET /api/reports/status?court_id=` 上报冷却/配额状态
 - `GET /api/push/public-key` · `POST /api/subscriptions` · `DELETE /api/subscriptions?endpoint=`
+- `GET /api/stats/quality-trend?days=90` 预报准确率逐日走势（含 7 天滚动平滑）
+- `GET /api/stats/dry-ranking?month=0` 球场十年雨频率排行（month=0 全年，否则 1-12 月）
+- `GET /api/stats/disagreement` 两预报源分歧时的历史胜负统计
 - `GET /api/admin/overview`（Header `X-Admin-Token`）后台看板聚合数据（数据新鲜度 / 任务状态 / 上报流 / 行数）
+- `GET /api/admin/activity?days=30`（Header `X-Admin-Token`）活跃趋势（DAU / 上报时刻分布 / 漏斗）
 
 ## 二期方向
 

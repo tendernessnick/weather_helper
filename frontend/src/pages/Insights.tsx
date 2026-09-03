@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type {
-  CourtRankRow, HourProfileRow, LeadBucket, StatsOverview,
+  CourtRankRow, DisagreementStats, DryRanking, HourProfileRow, LeadBucket,
+  QualityTrend, StatsOverview,
 } from '../types';
 import MyReportCard from '../components/MyReportCard';
 import { courtName, useLang, useT } from '../i18n';
@@ -271,6 +272,288 @@ function Ranking({ data }: { data: { group_rate: number | null; courts: CourtRan
   );
 }
 
+function QualityTrendCard() {
+  const t = useT();
+  const [days, setDays] = useState(90);
+  const [data, setData] = useState<QualityTrend | null>(null);
+  const [sel, setSel] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    setSel(null);
+    api.qualityTrend(days)
+      .then(setData)
+      .catch((err) => setError(String(err.message ?? err)));
+  }, [days]);
+
+  const series = data?.series ?? [];
+  const last = series[series.length - 1] ?? null;
+  const delta = data && last ? (last.acc_7d - data.window_accuracy) * 100 : null;
+  const x = (i: number) => (series.length <= 1 ? 50 : (i / (series.length - 1)) * 100);
+  const y = (v: number) => 100 - v * 100;
+
+  return (
+    <section className="ios-card mx-4 mt-4 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-[15px] font-bold tracking-tight">{t('ins.trendTitle')}</h2>
+        <div className="flex shrink-0 rounded-[10px] bg-[#E9E9EB] p-[2px] text-[11px] font-semibold">
+          {([30, 90, 180] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              className={`rounded-[8px] px-2.5 py-0.5 transition-colors ${
+                days === d ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6D6D72]'
+              }`}
+            >
+              {t(d === 30 ? 'ins.trend30' : d === 90 ? 'ins.trend90' : 'ins.trend180')}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="mt-0.5 text-[11px] text-slate-500">{t('ins.trendQuestion')}</p>
+
+      {error && <p className="mt-2 text-[11px] text-rose-600">{error}</p>}
+      {!error && !data && (
+        <p className="mt-3 text-center text-[11px] text-slate-400">{t('common.loading')}</p>
+      )}
+
+      {data && series.length === 0 && (
+        <p className="mt-3 text-center text-[11px] text-slate-400">{t('ins.trendEmpty')}</p>
+      )}
+
+      {data && series.length > 0 && (
+        <>
+          <span className="mb-0.5 mt-2 block text-[9px] text-slate-400">{t('ins.trendRolling')}</span>
+          <div className="relative h-40 rounded-lg bg-slate-50">
+            <div className="absolute inset-0">
+              {[25, 50, 75].map((p) => (
+                <div key={`g${p}`} className="absolute left-0 right-0 h-px bg-slate-200/70" style={{ top: `${p}%` }} />
+              ))}
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+                <polyline
+                  points={series.map((s, i) => `${x(i)},${y(s.acc_7d)}`).join(' ')}
+                  fill="none" stroke="#0284c7" strokeWidth="1.2" vectorEffect="non-scaling-stroke"
+                />
+                {series.map((s, i) => s.n >= 10 && (
+                  <circle key={s.date} cx={x(i)} cy={y(s.accuracy)} r="1.8"
+                          fill={sel === i ? '#0f172a' : '#7dd3fc'} fillOpacity={sel === i ? 1 : 0.8}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setSel(sel === i ? null : i)}>
+                    <title>{`${s.date}: ${Math.round(s.accuracy * 100)}% (n=${s.n})`}</title>
+                  </circle>
+                ))}
+              </svg>
+            </div>
+            {[0, 50, 100].map((v) => (
+              <span key={`y${v}`} className="absolute left-1 -translate-y-1/2 text-[8px] tabular-nums text-slate-400"
+                    style={{ top: `${100 - v}%` }}>{v}</span>
+            ))}
+            <span className="absolute bottom-0 left-3 text-[8px] tabular-nums text-slate-400">
+              {series[0].date.slice(5)}
+            </span>
+            <span className="absolute bottom-0 right-3 text-[8px] tabular-nums text-slate-400">
+              {series[series.length - 1].date.slice(5)}
+            </span>
+          </div>
+
+          {sel !== null && series[sel] && (
+            <p className="mt-1.5 rounded-lg bg-slate-50 p-2 text-[10px] tabular-nums text-slate-600">
+              {t('ins.trendDetail', {
+                d: series[sel].date,
+                a: Math.round(series[sel].accuracy * 100),
+                b: series[sel].brier.toFixed(3),
+                n: series[sel].n,
+                r: Math.round(series[sel].acc_7d * 100),
+              })}
+            </p>
+          )}
+          {last && delta !== null && (
+            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+              {Math.abs(delta) < 1.5 ? t('ins.trendFlat')
+                : delta > 0 ? t('ins.trendUp', { p: Math.round(delta) })
+                  : t('ins.trendDown', { p: Math.round(-delta) })}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function DryRankRowItem({ row, max, i, dry }: {
+  row: DryRanking['courts'][number]; max: number; i: number; dry: boolean;
+}) {
+  const { t, lang } = useLang();
+  const diff = row.diff_pct;
+  return (
+    <li className="flex items-center gap-2 text-[11px]">
+      <span className="w-4 shrink-0 text-right text-slate-400">{i + 1}</span>
+      <a href={`/courts/${row.court_id}`} className="w-24 shrink-0 truncate font-medium text-slate-700">
+        {courtName(row, lang)}
+      </a>
+      <div className="h-3.5 flex-1 rounded bg-slate-100">
+        <div className={`h-full rounded ${dry ? 'bg-emerald-400' : 'bg-sky-400'}`}
+             style={{ width: `${(row.rain_pct / max) * 100}%` }} />
+      </div>
+      <span className="w-9 shrink-0 text-right font-semibold tabular-nums">{row.rain_pct}%</span>
+      {diff !== null && (
+        <span className="w-16 shrink-0 text-right text-[9px] tabular-nums text-slate-400">
+          {t(dry ? 'ins.dryDiff' : 'ins.wetDiff', { p: Math.abs(diff).toFixed(1) })}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function DryRankingCard() {
+  const t = useT();
+  const [scope, setScope] = useState<'year' | 'month'>('year');
+  const [data, setData] = useState<DryRanking | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    // month=0 → whole-year aggregate; otherwise the current month
+    const now = new Date();
+    api.dryRanking(scope === 'year' ? 0 : now.getMonth() + 1)
+      .then(setData)
+      .catch((err) => setError(String(err.message ?? err)));
+  }, [scope]);
+
+  const courts = data?.courts ?? [];
+  const driest = courts.slice(0, 10);
+  const wettest = courts.slice(-5).reverse();
+  const max = courts.length ? courts[courts.length - 1].rain_pct : 1;
+
+  return (
+    <section className="ios-card mx-4 mt-4 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-[15px] font-bold tracking-tight">{t('ins.dryTitle')}</h2>
+        <div className="flex shrink-0 rounded-[10px] bg-[#E9E9EB] p-[2px] text-[11px] font-semibold">
+          {(['year', 'month'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setScope(s)}
+              className={`rounded-[8px] px-2.5 py-0.5 transition-colors ${
+                scope === s ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6D6D72]'
+              }`}
+            >
+              {t(s === 'year' ? 'ins.dryYear' : 'ins.dryMonth')}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="mt-0.5 text-[11px] text-slate-500">{t('ins.dryQuestion')}</p>
+
+      {error && <p className="mt-2 text-[11px] text-rose-600">{error}</p>}
+      {!error && !data && (
+        <p className="mt-3 text-center text-[11px] text-slate-400">{t('common.loading')}</p>
+      )}
+
+      {data && courts.length > 0 && (
+        <>
+          <h3 className="ios-header mt-3">{t('ins.dryTop')}</h3>
+          <ul className="mt-1.5 space-y-1">
+            {driest.map((c, i) => <DryRankRowItem key={c.court_id} row={c} max={max} i={i} dry />)}
+          </ul>
+          <h3 className="ios-header mt-3">{t('ins.wetTop')}</h3>
+          <ul className="mt-1.5 space-y-1">
+            {wettest.map((c, i) => <DryRankRowItem key={c.court_id} row={c} max={max} i={i} dry={false} />)}
+          </ul>
+          <p className="mt-2 text-[9px] leading-relaxed text-slate-400">
+            {t('ins.dryNote', { p: data.city_avg_pct != null ? `${data.city_avg_pct}%` : '—' })}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function DisagreementCard() {
+  const t = useT();
+  const [data, setData] = useState<DisagreementStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.disagreement().then(setData).catch((err) => setError(String(err.message ?? err)));
+  }, []);
+
+  const disagreeN = data ? data.om_wet_n + data.f3_wet_n : 0;
+  // Disagreement wins: a solo rain call that came true, plus the times the
+  // other source's solo rain call proved false.
+  const omWins = data ? data.om_wet_right + (data.f3_wet_n - data.f3_wet_right) : 0;
+  const f3Wins = data ? data.f3_wet_right + (data.om_wet_n - data.om_wet_right) : 0;
+  const agreeAcc = (() => {
+    if (!data || data.agree_n === 0) return null;
+    const { agree_rain_n: rn, agree_rain_acc: ra, agree_dry_n: dn, agree_dry_acc: da } = data;
+    const hits = (ra ?? 0) * rn + (da ?? 0) * dn;
+    return hits / data.agree_n;
+  })();
+  const verdict = (() => {
+    if (!data || disagreeN < 20) return t('ins.trendEmpty');
+    if (omWins === f3Wins) return t('ins.disVerdictTie');
+    const omBetter = omWins > f3Wins;
+    return t(omBetter ? 'ins.disVerdictOm' : 'ins.disVerdictF3', {
+      p: Math.round(((omBetter ? omWins : f3Wins) / disagreeN) * 100),
+      n: disagreeN,
+    });
+  })();
+
+  return (
+    <section className="ios-card mx-4 mt-4 p-4">
+      <h2 className="text-[15px] font-bold tracking-tight">{t('ins.disTitle')}</h2>
+      <p className="mt-0.5 text-[11px] text-slate-500">{t('ins.disQuestion')}</p>
+
+      {error && <p className="mt-2 text-[11px] text-rose-600">{error}</p>}
+      {!error && !data && (
+        <p className="mt-3 text-center text-[11px] text-slate-400">{t('common.loading')}</p>
+      )}
+
+      {data && (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <BigStat
+              label={t('ins.disAgree')}
+              value={pct(agreeAcc)}
+              note={t('ins.accNote', { n: data.agree_n })}
+            />
+            <BigStat
+              label={t('ins.disN')}
+              value={String(disagreeN)}
+              note={t('ins.window', { n: data.window_days, n2: data.n })}
+            />
+          </div>
+          <div className="mt-2 space-y-2">
+            {[
+              { label: t('ins.disOmWet'), n: data.om_wet_n, right: data.om_wet_right, tone: 'bg-amber-400' },
+              { label: t('ins.disF3Wet'), n: data.f3_wet_n, right: data.f3_wet_right, tone: 'bg-sky-400' },
+            ].map((row) => (
+              <div key={row.label}>
+                <div className="flex items-baseline justify-between text-[11px]">
+                  <span className="text-slate-600">{row.label}</span>
+                  <span className="tabular-nums text-slate-500">
+                    {t('ins.disHitRate', {
+                      p: row.n > 0 ? Math.round((row.right / row.n) * 100) : '—',
+                      n: row.n,
+                    })}
+                  </span>
+                </div>
+                <div className="mt-1 flex h-3 overflow-hidden rounded-full bg-slate-100">
+                  {row.n > 0 && (
+                    <div className={row.tone} style={{ width: `${(row.right / row.n) * 100}%` }} />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{verdict}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function Insights() {
   const t = useT();
   const [overview, setOverview] = useState<StatsOverview | null>(null);
@@ -331,6 +614,9 @@ export default function Insights() {
       <LeadDecay data={decay} />
       <HourProfile profile={profile} />
       <Ranking data={ranking} />
+      <QualityTrendCard />
+      <DryRankingCard />
+      <DisagreementCard />
     </div>
   );
 }

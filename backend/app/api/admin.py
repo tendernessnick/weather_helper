@@ -6,8 +6,8 @@ can poll a single URL. No writes, no mutations - this is a viewing tool.
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
@@ -144,4 +144,60 @@ def admin_overview(db: Session = Depends(get_db)):
         "subscriptions": subscriptions,
         "devices_7d": len(devices),
         "db": db_state(),
+    }
+
+
+@router.get("/admin/activity", dependencies=[Depends(require_admin)])
+def admin_activity(days: int = Query(default=30, ge=1, le=90),
+                   db: Session = Depends(get_db)):
+    """User activity trends: DAU series, report funnel, submission-hour
+    histogram, subscription take-up. Slow-changing; fetched on demand."""
+    now = hk_now()
+    since = now - timedelta(days=days)
+
+    dau_rows = db.execute(text(
+        "SELECT d, COUNT(DISTINCT device_id) FROM ("
+        " SELECT date(created_at) AS d, device_id FROM user_reports WHERE created_at >= :since"
+        " UNION"
+        " SELECT date(created_at) AS d, device_id FROM checkins WHERE created_at >= :since"
+        ") GROUP BY d ORDER BY d"
+    ), {"since": since}).all()
+    dau_map = {str(d): c for d, c in dau_rows}
+    dau = [{"date": (since.date() + timedelta(days=i)).isoformat(),
+            "devices": dau_map.get((since.date() + timedelta(days=i)).isoformat(), 0)}
+           for i in range(days + 1)]
+
+    hour_rows = db.execute(text(
+        "SELECT CAST(strftime('%H', created_at) AS INTEGER) AS h, COUNT(*) "
+        "FROM user_reports WHERE created_at >= :since GROUP BY h"
+    ), {"since": since}).all()
+    by_hour = {h: c for h, c in hour_rows}
+
+    by_status = dict(db.query(UserReport.status, func.count())
+                     .filter(UserReport.created_at >= since)
+                     .group_by(UserReport.status).all())
+
+    subs_created = db.query(PushSubscription).filter(
+        PushSubscription.created_at >= since).count()
+    active_push = db.query(PushSubscription).filter(
+        PushSubscription.notified_at.is_(None),
+        ~PushSubscription.endpoint.like("poll:%")).count()
+    active_poll = db.query(PushSubscription).filter(
+        PushSubscription.notified_at.is_(None),
+        PushSubscription.endpoint.like("poll:%")).count()
+
+    return {
+        "days": days,
+        "dau": dau,
+        "reports_by_hour": [by_hour.get(h, 0) for h in range(24)],
+        "funnel": {
+            "total": sum(by_status.values()),
+            "accepted": by_status.get("accepted", 0),
+            "by_status": {k: v for k, v in by_status.items() if k != "accepted"},
+        },
+        "subscriptions": {
+            "created": subs_created,
+            "active_web_push": active_push,
+            "active_polling": active_poll,
+        },
     }

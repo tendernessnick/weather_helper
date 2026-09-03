@@ -6,7 +6,7 @@ Pair format everywhere: (prob_0to1, outcome_bool, baseline_prob_or_None).
 import json
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import floor_hour, hk_now, settings
@@ -365,3 +365,146 @@ def decision_zone(corrected: float) -> str:
     if corrected <= ZONE_AMBER_MAX:
         return "edge"
     return "no"
+
+
+# ---------------------------------------------------------- quality trend ---
+
+def quality_trend(db: Session, days: int = 90) -> dict:
+    """Daily Open-Meteo accuracy/Brier over the window, plus a 7-day pooled
+    rolling smooth - answers "is the forecast getting better or worse lately"."""
+    since = hk_now() - timedelta(days=days)
+    threshold = settings.pop_rain_threshold / 100.0
+    outcomes = _station_outcomes(db, since)
+
+    per_day: dict[str, list[tuple[float, bool]]] = {}
+    for court_id, target, prob in db.execute(
+        select(ForecastSnapshot.court_id, ForecastSnapshot.target_hour,
+               ForecastSnapshot.precip_prob)
+        .where(ForecastSnapshot.source == "open_meteo",
+               ForecastSnapshot.target_hour >= since)
+    ):
+        outcome = outcomes.get(court_id, {}).get(target)
+        if outcome is None:
+            continue
+        per_day.setdefault(target.date().isoformat(), []).append((prob / 100.0, outcome))
+
+    def _rates(pairs: list[tuple[float, bool]]) -> tuple[int, float, float]:
+        n = len(pairs)
+        acc = sum(1 for p, o in pairs if (p >= threshold) == o) / n
+        brier = sum((p - (1.0 if o else 0.0)) ** 2 for p, o in pairs) / n
+        return n, acc, brier
+
+    dates = sorted(per_day)
+    series = []
+    for i, d in enumerate(dates):
+        n, acc, brier = _rates(per_day[d])
+        window = [pr for wd in dates[max(0, i - 6):i + 1] for pr in per_day[wd]]
+        wn, wacc, wbrier = _rates(window)
+        series.append({
+            "date": d, "n": n,
+            "accuracy": round(acc, 3), "brier": round(brier, 3),
+            "n_7d": wn, "acc_7d": round(wacc, 3), "brier_7d": round(wbrier, 3),
+        })
+
+    total = [pr for d in dates for pr in per_day[d]]
+    _tn, tacc, _tb = _rates(total)
+    return {
+        "days": days,
+        "window_n": _tn,
+        "window_accuracy": round(tacc, 3),
+        "series": series,
+    }
+
+
+# ------------------------------------------------------------- dry ranking ---
+
+def dry_ranking(db: Session, month: int = 0) -> dict:
+    """Historical rain frequency per court from the 10y ERA5 archive
+    (month 0 = whole year). ERA5 is an ~11km grid, so same-area courts tie."""
+    query = (db.query(Climatology.court_id,
+                      func.sum(Climatology.rain_count), func.sum(Climatology.samples)))
+    if month:
+        query = query.filter(Climatology.month == month)
+    rows = query.group_by(Climatology.court_id).all()
+
+    courts = {c.id: c for c in db.query(Court).all()}
+    total_rain = sum(r for _c, r, _s in rows)
+    total_samples = sum(s for _c, _r, s in rows)
+    city_avg = total_rain / total_samples if total_samples else None
+
+    out = []
+    for court_id, rain, samples in rows:
+        court = courts.get(court_id)
+        if court is None or not samples:
+            continue
+        pct = rain / samples * 100
+        out.append({
+            "court_id": court_id,
+            "name_sc": court.name_sc, "name_tc": court.name_tc,
+            "name_en": court.name_en,
+            "district_tc": court.district_tc, "district_en": court.district_en,
+            "rain_pct": round(pct, 1),
+            "diff_pct": round(pct - city_avg * 100, 1) if city_avg is not None else None,
+        })
+    out.sort(key=lambda r: r["rain_pct"])
+    return {
+        "month": month,
+        "city_avg_pct": round(city_avg * 100, 1) if city_avg is not None else None,
+        "courts": out,
+    }
+
+
+# ------------------------------------------------------------ disagreement ---
+
+def disagreement(db: Session) -> dict:
+    """When Open-Meteo and the F3 nowcast call the same court-hour differently,
+    who matches the gauge? Agreement accuracy is the baseline to beat."""
+    since = hk_now() - timedelta(days=settings.window_days)
+    threshold = settings.pop_rain_threshold / 100.0
+
+    om: dict[str, dict] = {}
+    for court_id, target, prob in db.execute(
+        select(ForecastSnapshot.court_id, ForecastSnapshot.target_hour,
+               ForecastSnapshot.precip_prob)
+        .where(ForecastSnapshot.source == "open_meteo",
+               ForecastSnapshot.target_hour >= since)
+    ):
+        om.setdefault(court_id, {})[target] = prob / 100.0 >= threshold
+    outcomes = _station_outcomes(db, since)
+
+    n = agree_rain = agree_rain_hit = agree_dry = agree_dry_hit = 0
+    om_wet_n = om_wet_right = f3_wet_n = f3_wet_right = 0
+    for court_id, hour, f3_rain, _p in _iter_f3(db, since):
+        om_rain = om.get(court_id, {}).get(hour)
+        if om_rain is None:
+            continue
+        outcome = outcomes.get(court_id, {}).get(hour)
+        if outcome is None:
+            continue
+        n += 1
+        if om_rain and f3_rain:
+            agree_rain += 1
+            agree_rain_hit += int(outcome)
+        elif not om_rain and not f3_rain:
+            agree_dry += 1
+            agree_dry_hit += int(not outcome)
+        elif om_rain:  # OM wet, F3 dry
+            om_wet_n += 1
+            om_wet_right += int(outcome)
+        else:          # F3 wet, OM dry
+            f3_wet_n += 1
+            f3_wet_right += int(outcome)
+
+    return {
+        "window_days": settings.window_days,
+        "n": n,
+        "agree_n": agree_rain + agree_dry,
+        "agree_rain_n": agree_rain,
+        "agree_rain_acc": round(agree_rain_hit / agree_rain, 3) if agree_rain else None,
+        "agree_dry_n": agree_dry,
+        "agree_dry_acc": round(agree_dry_hit / agree_dry, 3) if agree_dry else None,
+        # OM-only rain calls: right when it actually rained
+        "om_wet_n": om_wet_n, "om_wet_right": om_wet_right,
+        # F3-only rain calls: right when it actually rained
+        "f3_wet_n": f3_wet_n, "f3_wet_right": f3_wet_right,
+    }

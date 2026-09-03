@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api';
 import { courtName, useLang } from '../i18n';
 import type { TKey } from '../i18n';
-import type { AdminOverview as AdminData, AdminSource } from '../types';
+import type { AdminActivity, AdminOverview as AdminData, AdminSource } from '../types';
 
 const TOKEN_KEY = 'wh_admin_token';
 
@@ -78,6 +78,8 @@ export default function Admin() {
   const [fetchedAt, setFetchedAt] = useState(0);
   const [nowTick, setNowTick] = useState(Date.now());
   const [filter, setFilter] = useState<'all' | 'accepted' | 'rejected'>('all');
+  const [activity, setActivity] = useState<AdminActivity | null>(null);
+  const [actDays, setActDays] = useState(30);
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 10_000);
@@ -106,6 +108,23 @@ export default function Admin() {
       handleFailure(e);
     }
   }, [token, handleFailure]);
+
+  // Activity trends change slowly: fetched on entry / on window change /
+  // manual refresh, deliberately outside the 60s overview poll.
+  const loadActivity = useCallback(async () => {
+    try {
+      setActivity(await api.adminActivity(token, actDays));
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.status === 503)) {
+        handleFailure(e);  // token problems are handled once, by the overview flow
+      }
+      /* transient errors: keep the previous data */
+    }
+  }, [token, actDays, handleFailure]);
+
+  useEffect(() => {
+    if (token) loadActivity();
+  }, [token, loadActivity]);
 
   // Poll every 60s while a token is held.
   useEffect(() => {
@@ -233,7 +252,7 @@ export default function Admin() {
         </div>
         <div className="flex shrink-0 gap-2">
           <button
-            onClick={load}
+            onClick={() => { load(); loadActivity(); }}
             className="rounded-full bg-[#E9E9EB] px-3 py-1.5 text-[12px] font-semibold text-[#3C3C43] active:bg-[#D8D8DC]"
           >
             {t('admin.refresh')}
@@ -399,7 +418,7 @@ export default function Admin() {
 
           {/* user activity */}
           <section className="ios-card mx-4 mt-4 p-4">
-            <h2 className="text-[15px] font-bold tracking-tight">{t('admin.activityTitle')}</h2>
+            <h2 className="text-[15px] font-bold tracking-tight">{t('admin.usersTitle')}</h2>
             <div className="mt-3 grid grid-cols-3 gap-2">
               <Stat value={data.checkins.today} label={t('admin.stat.checkinsToday')} />
               <Stat value={data.checkins.week} label={t('admin.stat.checkins7d')} />
@@ -408,6 +427,70 @@ export default function Admin() {
               <Stat value={data.subscriptions.web_push} label={t('admin.stat.subPush')} />
               <Stat value={data.subscriptions.polling} label={t('admin.stat.subPoll')} />
             </div>
+          </section>
+
+          {/* activity trends */}
+          <section className="ios-card mx-4 mt-4 p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-[15px] font-bold tracking-tight">{t('admin.activityTitle')}</h2>
+              <div className="flex shrink-0 rounded-[10px] bg-[#E9E9EB] p-[2px] text-[11px] font-semibold">
+                {([7, 30, 90] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setActDays(d)}
+                    className={`rounded-[8px] px-2.5 py-0.5 transition-colors ${
+                      actDays === d ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6D6D72]'
+                    }`}
+                  >
+                    {t(d === 7 ? 'admin.activity7' : d === 30 ? 'admin.activity30' : 'admin.activity90')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {!activity ? (
+              <p className="mt-3 text-center text-[11px] text-slate-400">{t('common.loading')}</p>
+            ) : (
+              <>
+                <h3 className="ios-header mt-3">{t('admin.dauTitle')}</h3>
+                <div className="mt-2 flex h-14 items-end gap-[2px]">
+                  {(() => {
+                    const dauMax = Math.max(1, ...activity.dau.map((x) => x.devices));
+                    return activity.dau.map((d) => (
+                      <div key={d.date} className="flex-1" title={`${d.date}: ${d.devices}`}>
+                        <div className="w-full rounded-[2px] bg-[#34C759]/80"
+                             style={{ height: `${Math.max(2, (d.devices / dauMax) * 52)}px` }} />
+                      </div>
+                    ));
+                  })()}
+                </div>
+                <div className="mt-0.5 flex justify-between text-[9px] tabular-nums text-slate-400">
+                  <span>{activity.dau[0]?.date.slice(5)}</span>
+                  <span>{activity.dau[activity.dau.length - 1]?.date.slice(5)}</span>
+                </div>
+
+                <h3 className="ios-header mt-4">{t('admin.hourTitle')}</h3>
+                <div className="mt-2 flex h-10 items-end gap-[1px]">
+                  {(() => {
+                    const hourMax = Math.max(1, ...activity.reports_by_hour);
+                    return activity.reports_by_hour.map((c, h) => (
+                      <div key={h} className="flex-1" title={`${h}:00 · ${c}`}>
+                        <div className="w-full rounded-[2px] bg-[#007AFF]/70"
+                             style={{ height: `${Math.max(1, (c / hourMax) * 32)}px` }} />
+                      </div>
+                    ));
+                  })()}
+                </div>
+                <div className="mt-0.5 flex justify-between text-[9px] tabular-nums text-slate-400">
+                  <span>0</span><span>12</span><span>23</span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <Stat value={activity.funnel.total} label={t('admin.funnelTotal')} />
+                  <Stat value={activity.funnel.accepted} label={t('admin.stat.accepted')} />
+                  <Stat value={activity.subscriptions.created} label={t('admin.subsCreated')} />
+                </div>
+              </>
+            )}
           </section>
 
           {/* database */}

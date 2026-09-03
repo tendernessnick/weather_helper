@@ -1,7 +1,8 @@
 import { getDeviceId } from './device';
 import type {
-  AdminOverview, BestResponse, CalibrationInfo, CheckinReport, CourtListItem, CourtRankRow,
-  CourtScores, LeadBucket, HourProfileRow, RecentReport, Reminder,
+  AdminActivity, AdminOverview, BestResponse, CalibrationInfo, CheckinReport,
+  CourtListItem, CourtRankRow, CourtScores, DisagreementStats, DryRanking,
+  HourProfileRow, LeadBucket, QualityTrend, RecentReport, Reminder,
   ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
 
@@ -106,6 +107,14 @@ export const api = {
   courtsRanking: () =>
     request<{ group_rate: number | null; courts: CourtRankRow[] }>('/api/stats/courts'),
 
+  qualityTrend: (days: number) =>
+    request<QualityTrend>(`/api/stats/quality-trend?days=${days}`),
+
+  dryRanking: (month: number) =>
+    request<DryRanking>(`/api/stats/dry-ranking?month=${month}`),
+
+  disagreement: () => request<DisagreementStats>('/api/stats/disagreement'),
+
   courtCalibration: (id: string) =>
     request<CalibrationInfo>(`/api/courts/${id}/calibration`),
 
@@ -129,6 +138,11 @@ export const api = {
 
   adminOverview: (token: string) =>
     request<AdminOverview>('/api/admin/overview', {
+      headers: { 'X-Admin-Token': token },
+    }),
+
+  adminActivity: (token: string, days: number) =>
+    request<AdminActivity>(`/api/admin/activity?days=${days}`, {
       headers: { 'X-Admin-Token': token },
     }),
 };

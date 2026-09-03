@@ -257,6 +257,56 @@ export interface CalibrationInfo {
   zones: { green_max: number; amber_max: number };
 }
 
+// --- insights: quality trend / dry ranking / disagreement ---
+
+export interface QualityTrendPoint {
+  date: string;
+  n: number;
+  accuracy: number;
+  brier: number;
+  n_7d: number;
+  acc_7d: number;
+  brier_7d: number;
+}
+
+export interface QualityTrend {
+  days: number;
+  window_n: number;
+  window_accuracy: number;
+  series: QualityTrendPoint[];
+}
+
+export interface DryRankRow {
+  court_id: string;
+  name_sc: string;
+  name_tc: string;
+  name_en: string;
+  district_tc: string;
+  district_en: string;
+  rain_pct: number;
+  diff_pct: number | null;
+}
+
+export interface DryRanking {
+  month: number;
+  city_avg_pct: number | null;
+  courts: DryRankRow[];
+}
+
+export interface DisagreementStats {
+  window_days: number;
+  n: number;
+  agree_n: number;
+  agree_rain_n: number;
+  agree_rain_acc: number | null;
+  agree_dry_n: number;
+  agree_dry_acc: number | null;
+  om_wet_n: number;
+  om_wet_right: number;
+  f3_wet_n: number;
+  f3_wet_right: number;
+}
+
 // --- admin dashboard ---
 
 export interface AdminSource {
@@ -306,4 +356,12 @@ export interface AdminOverview {
   subscriptions: { web_push: number; polling: number };
   devices_7d: number;
   db: Record<string, string | number | null>;
+}
+
+export interface AdminActivity {
+  days: number;
+  dau: { date: string; devices: number }[];
+  reports_by_hour: number[];
+  funnel: { total: number; accepted: number; by_status: Record<string, number> };
+  subscriptions: { created: number; active_web_push: number; active_polling: number };
 }
