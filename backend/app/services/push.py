@@ -80,7 +80,8 @@ def check_and_notify(db: Session) -> int:
 
     sent = 0
     for sub in due:
-        lead = sub.hours_before
+        # hours_before is a float column; datetime arithmetic needs a timedelta.
+        lead = timedelta(hours=sub.hours_before)
         notify_from = sub.play_at - lead - timedelta(minutes=5)
         notify_until = sub.play_at - lead + timedelta(minutes=5)
         if not (notify_from <= now <= notify_until):
