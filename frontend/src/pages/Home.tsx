@@ -122,7 +122,12 @@ export default function Home() {
         <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-[#5B5B60]">
           {t('home.heroSub')}
         </p>
-        <div className="mx-auto mt-6 max-w-[340px] space-y-3">
+        {/* participation pitch, moved up next to the CTAs it is meant to drive */}
+        <div className="mx-auto mt-4 max-w-[340px] rounded-[16px] border border-white/70 bg-white/45 px-4 py-3 text-left backdrop-blur-xl">
+          <p className="text-[12.5px] font-bold text-[#177A3E]">{t('home.callTitle')}</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{t('home.callBody')}</p>
+        </div>
+        <div className="mx-auto mt-4 max-w-[340px] space-y-3">
           <a
             href="/courts"
             className="block rounded-full bg-gradient-to-b from-[#3DD968] to-[#26B455] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(52,199,89,0.65)] ring-1 ring-white/30 transition active:from-[#1FA84C] active:to-[#178F41]"
@@ -213,17 +218,7 @@ export default function Home() {
         )}
       </section>
 
-      {/* call to participate */}
-      <section className="mx-4 mt-4 overflow-hidden rounded-[20px] border border-[#34C759]/25 bg-gradient-to-br from-[#34C759]/15 to-[#8EC5FF]/15 p-4 shadow-[0_12px_32px_-14px_rgba(52,199,89,0.35)] backdrop-blur-xl">
-        <h2 className="text-[15px] font-bold tracking-tight text-[#14602F]">{t('home.callTitle')}</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-[#14602F]/85">{t('home.callBody')}</p>
-        <a
-          href="/courts"
-          className="mt-3 block rounded-full bg-gradient-to-b from-[#3DD968] to-[#26B455] px-5 py-2.5 text-center text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(52,199,89,0.65)] ring-1 ring-white/30 active:from-[#1FA84C] active:to-[#178F41]"
-        >
-          {t('home.callCta')} →
-        </a>
-      </section>
+      {/* participation pitch lives in the hero now; nothing after community pulse */}
     </div>
   );
 }

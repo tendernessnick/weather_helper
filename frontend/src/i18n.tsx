@@ -342,7 +342,6 @@ const S = {
   'home.pulseEmpty': ['近 6 小时没人报。去球场，做今天第一个？', '近 6 小時沒人報。去球場，做今天第一個？', 'Quiet for the last 6h. Be the first to report today.'],
   'home.callTitle': ['你看到的天气，正是别人想知道的', '你看到的天氣，正是別人想知道的', 'The sky you see is the one others are wondering about'],
   'home.callBody': ['这里没有商业数据源，天气靠球友一条条报出来。你顺手一报，正纠结去不去的人心里就有数了。', '這裡沒有商業數據源，天氣靠球友一條條報出來。你順手一報，正糾結去不去的人心裡就有數了。', "There's no paid data feed here — courts are read by players, one report at a time. Yours might settle it for someone still hesitating by the door."],
-  'home.callCta': ['去选球场，上报一次', '去選球場，上報一次', 'Pick a court & report'],
 
   // --- admin dashboard (/admin, token-gated) ---
   'admin.title': ['后台管理', '後台管理', 'Admin'],
