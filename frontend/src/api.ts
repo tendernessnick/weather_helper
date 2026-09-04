@@ -154,6 +154,12 @@ export const api = {
     request<{ cooldown_remaining_sec: number; feedback_today: number; daily_limit: number }>(
       '/api/feedback/status'),
 
+  visit: (source: string, path: string) =>
+    request<{ status: string }>('/api/visits', {
+      method: 'POST',
+      body: JSON.stringify({ source, path }),
+    }),
+
   adminFeedback: (token: string, status: string) =>
     request<{ feedback: FeedbackRow[] }>(`/api/admin/feedback?status=${status}`, {
       headers: { 'X-Admin-Token': token },

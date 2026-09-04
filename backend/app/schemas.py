@@ -53,3 +53,10 @@ class FeedbackIn(BaseModel):
 class FeedbackUpdateIn(BaseModel):
     status: str | None = Field(default=None, pattern="^(new|ack|resolved|dismissed)$")
     admin_note: str | None = Field(default=None, max_length=2000)
+
+
+class VisitIn(BaseModel):
+    """One page-load attribution ping; both fields optional -> safe defaults."""
+
+    source: str | None = Field(default=None, max_length=40)
+    path: str | None = Field(default=None, max_length=200)

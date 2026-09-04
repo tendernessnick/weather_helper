@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iframe 嵌入测试 · weather_helper</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    p { margin: 4px 0; color: #444; }
+    .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+    input[type="text"] { flex: 1; min-width: 260px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
+    button { padding: 6px 14px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font: inherit; cursor: pointer; }
+    iframe { width: 100%; height: 72vh; border: 1px solid #ccc; border-radius: 12px; background: #fff; }
+  </style>
+</head>
+<body>
+  <h1>iframe 嵌入测试（模拟宿主 App 的应用内浏览器）</h1>
+  <p>验证嵌入场景下：深链直达、上报定位被拒时的提示文案、无推送环境订阅框的降级提示、?from= 来源打点。</p>
+  <div class="bar">
+    <label>App 地址：<input type="text" id="url" value="http://localhost:5173" /></label>
+    <label><input type="checkbox" id="geo" checked /> allow="geolocation"（取消勾选可模拟宿主不放行定位）</label>
+    <button onclick="load()">重新加载</button>
+  </div>
+  <iframe id="frame" title="app"></iframe>
+  <script>
+    document.getElementById('url').value =
+      new URLSearchParams(location.search).get('app') || 'http://localhost:5173';
+    function load() {
+      const url = document.getElementById('url').value.trim();
+      const frame = document.getElementById('frame');
+      // 勾选时模拟宿主放行定位权限（对应 Android WebView 的 WebSettings
+      // + onPermissionRequest / iOS WKWebView 的 decidePolicyFor）；
+      // 不勾选即默认拒绝，用得上首页「去最近球场」和上报框的降级文案。
+      frame.allow = document.getElementById('geo').checked ? 'geolocation' : '';
+      frame.src = url;
+    }
+    load();
+  </script>
+</body>
+</html>

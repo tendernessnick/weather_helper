@@ -15,7 +15,7 @@ from sqlalchemy import delete
 from .config import hk_now, settings
 from .db import SessionLocal
 from .models import (Climatology, ForecastLead, ForecastSnapshot, NowcastSnapshot,
-                     Observation, Persistence, UserReport)
+                     Observation, Persistence, UserReport, VisitLog)
 from .services import climate, hko, hko_nowcast, lightning, open_meteo, push
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,10 @@ def _job_purge():
         # Keep accepted reports as an audit trail; drop rejected ones with the window.
         db.execute(delete(UserReport).where(
             UserReport.created_at < cutoff, UserReport.status != "accepted"))
+        # Visit logs live longer than weather rows: referral numbers are
+        # compared across a whole season (see admin /visits).
+        db.execute(delete(VisitLog).where(
+            VisitLog.created_at < hk_now() - timedelta(days=180)))
         db.commit()
     logger.info("purged rows older than %s", cutoff)
 

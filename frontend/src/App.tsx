@@ -1,5 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Home from './pages/Home';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
@@ -11,6 +11,7 @@ import FeedbackSheet from './components/FeedbackSheet';
 import Icon from './components/Icon';
 import { LANG_META, useLang, useT } from './i18n';
 import type { Lang } from './i18n';
+import { trackVisit } from './referral';
 
 function SegmentedTabs() {
   const { t } = useLang();
@@ -57,6 +58,9 @@ function LangButton() {
 export default function App() {
   const t = useT();
   const [fbOpen, setFbOpen] = useState(false);
+  useEffect(() => {
+    trackVisit();
+  }, []);
   return (
     <div className="relative isolate mx-auto min-h-screen max-w-3xl overflow-hidden">
       {/* atmosphere: dawn-sky gradient + soft color blobs (Apple-weather style) */}

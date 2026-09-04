@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api';
 import { courtName, useLang } from '../i18n';
+import { storage } from '../storage';
 import type { TKey } from '../i18n';
 import type {
   AdminActivity, AdminOverview as AdminData, AdminSource, FeedbackRow,
@@ -96,7 +97,7 @@ function Stat({ value, label, tone }: { value: string | number; label: string; t
 
 export default function Admin() {
   const { t, lang } = useLang();
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '');
+  const [token, setToken] = useState(() => storage.get(TOKEN_KEY) ?? '');
   const [input, setInput] = useState('');
   const [gateBusy, setGateBusy] = useState(false);
   const [gateMsg, setGateMsg] = useState<string | null>(null);
@@ -117,7 +118,7 @@ export default function Admin() {
 
   const handleFailure = useCallback((e: unknown) => {
     if (e instanceof ApiError && (e.status === 401 || e.status === 503)) {
-      localStorage.removeItem(TOKEN_KEY);
+      storage.remove(TOKEN_KEY);
       setToken('');
       setInput('');
       setGateMsg(e.status === 503 ? t('admin.tokenNotConfigured') : t('admin.tokenInvalid'));
@@ -199,7 +200,7 @@ export default function Admin() {
     setGateMsg(null);
     try {
       const d = await api.adminOverview(tk);
-      localStorage.setItem(TOKEN_KEY, tk);
+      storage.set(TOKEN_KEY, tk);
       setToken(tk);
       setData(d);
       setFetchedAt(Date.now());
@@ -216,7 +217,7 @@ export default function Admin() {
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
+    storage.remove(TOKEN_KEY);
     setToken('');
     setData(null);
     setLoadErr(null);

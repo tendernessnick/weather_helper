@@ -75,8 +75,12 @@ export default function ReportSheet({ court }: { court: Court }) {
     } catch (err) {
       if (err instanceof ApiError) {
         setMessage(serverMsg(err.message, t));
-      } else if (err instanceof GeolocationPositionError || (err instanceof Error && err.message === 'NO_GEO')) {
-        setMessage(t('report.geoFail'));
+      } else if (err instanceof GeolocationPositionError) {
+        // Denied (code 1) or a missing API is typical of in-app webviews; a
+        // plain timeout/GPS miss is not — keep the softer hint for that.
+        setMessage(err.code === 1 ? t('report.geoDenied') : t('report.geoFail'));
+      } else if (err instanceof Error && err.message === 'NO_GEO') {
+        setMessage(t('report.geoDenied'));
       } else {
         setMessage(String((err as Error).message ?? err));
       }

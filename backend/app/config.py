@@ -80,6 +80,13 @@ class Settings:
     admin_token: str = field(default_factory=lambda: os.environ.get("ADMIN_TOKEN", ""))
     cors_origins: str = field(default_factory=lambda: os.environ.get("CORS_ORIGINS", "*"))
 
+    # Public origin (no trailing slash) used to make link-preview URLs absolute
+    # in index.html's og: tags. Falls back to the request Host when unset; set
+    # it in production (custom domain or e.g. https://xxx.up.railway.app) so
+    # crawlers and chat apps resolve og:image reliably.
+    site_url: str = field(default_factory=lambda: os.environ.get(
+        "SITE_URL", "").strip().rstrip("/"))
+
     # --- upstream sources ---
     lcsd_courts_url: str = "https://www.lcsd.gov.hk/datagovhk/facility/facility-tc.json"
     hko_hourly_rainfall_url: str = "https://data.weather.gov.hk/weatherAPI/opendata/hourlyRainfall.php?lang=en"

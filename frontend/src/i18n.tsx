@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { storage } from './storage';
 
 export type Lang = 'hans' | 'hant' | 'en';
 const IDX: Record<Lang, 0 | 1 | 2> = { hans: 0, hant: 1, en: 2 };
@@ -163,6 +164,7 @@ const S = {
   'report.cta': ['上报实况', '上報實況', 'Report rain'],
   'report.ok': ['上报成功，谢谢！{t}内无需重复上报。', '上報成功，謝謝！{t}內無需重複上報。', 'Thanks for reporting! No need again for {t}.'],
   'report.geoFail': ['定位失败：请允许定位权限，并在空旷处重试。', '定位失敗：請允許定位權限，並在空曠處重試。', 'Location failed: allow access and retry in the open.'],
+  'report.geoDenied': ['无法获取定位：内置浏览器常拦截定位。请允许权限，或将链接复制到系统浏览器（Safari / Chrome）打开。', '無法取得定位：內置瀏覽器常攔截定位。請允許權限，或將連結複製到系統瀏覽器（Safari / Chrome）開啟。', "Couldn't get your location — in-app browsers often block it. Allow access, or open this page in your system browser (Safari / Chrome)."],
   'report.noGeo': ['设备不支持定位', '設備不支援定位', 'Location unsupported'],
   'report.hours': ['{h} 小时 {m} 分钟', '{h} 小時 {m} 分鐘', '{h}h {m}m'],
   'report.minutes': ['{m} 分钟', '{m} 分鐘', '{m} min'],
@@ -175,6 +177,7 @@ const S = {
   'sub.pushOk': ['已订阅推送提醒：开打前 30 分钟若有下雨风险会通知你（即使页面已关闭）。', '已訂閱推送提醒：開打前 30 分鐘若有下雨風險會通知你（即使頁面已關閉）。', 'Push subscribed: notified 30 min before if rain risk shows (even when closed).'],
   'sub.poll': ['当前环境连不上推送服务，已改用页面内提醒：到点前请保持本站页面打开，会弹出系统通知或页内横幅。', '當前環境連不上推送服務，已改用頁面內提醒：到點前請保持本站頁面打開，會彈出系統通知或頁內橫幅。', 'Push service unreachable; using in-page reminders — keep this site open for a notification or banner.'],
   'sub.noPerm': ['未获得通知权限', '未取得通知權限', 'Notification permission denied'],
+  'sub.noPush': ['此环境不支持系统推送（应用内浏览器常见）。仍可设置提醒：到点前保持本页打开即可收到通知。', '此環境不支援系統推送（應用內瀏覽器常見）。仍可設置提醒：到點前保持本頁開啟即可收到通知。', 'System push is unavailable here (common in in-app browsers). You can still set a reminder — just keep this page open until game time.'],
   'sub.noServer': ['服务器未配置推送', '伺服器未設定推送', 'Push not configured'],
 
   // --- check-in ---
@@ -499,10 +502,8 @@ const SERVER_KEYS: Record<string, TKey> = {
 };
 
 function detectLang(): Lang {
-  try {
-    const saved = localStorage.getItem('wh_lang');
-    if (saved === 'hans' || saved === 'hant' || saved === 'en') return saved;
-  } catch { /* private mode */ }
+  const saved = storage.get('wh_lang');
+  if (saved === 'hans' || saved === 'hant' || saved === 'en') return saved;
   const langs = [navigator.language, ...(navigator.languages ?? [])];
   for (const l of langs) {
     const low = l.toLowerCase();
@@ -538,7 +539,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    try { localStorage.setItem('wh_lang', l); } catch { /* private mode */ }
+    storage.set('wh_lang', l);
   };
 
   const t = useCallback((key: TKey, params?: Record<string, string | number>): string => {

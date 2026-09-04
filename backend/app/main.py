@@ -4,13 +4,13 @@ import os
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .api import (admin, best, checkins, courts, feedback, map as map_api,
-                  reports, stats, subscriptions)
+                  reports, stats, subscriptions, visits)
 from .config import settings
 from .db import SessionLocal, init_db
 from .diagnostics import db_state
@@ -64,6 +64,7 @@ app.include_router(best.router, prefix="/api")
 app.include_router(map_api.router, prefix="/api")
 app.include_router(checkins.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
+app.include_router(visits.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
 
@@ -78,9 +79,23 @@ _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 if os.path.isdir(_dist):
     app.mount("/assets", StaticFiles(directory=os.path.join(_dist, "assets")), name="assets")
 
+    _index_path = os.path.join(_dist, "index.html")
+    _index_cache: tuple[float, str] | None = None  # (mtime, html with placeholder)
+
+    def _render_index(request: Request) -> str:
+        """index.html with {{SITE_URL}} made absolute. OG crawlers don't run
+        JS, so link-preview URLs must be injected server-side; the request
+        Host is the fallback when SITE_URL isn't configured."""
+        global _index_cache
+        mtime = os.path.getmtime(_index_path)
+        if _index_cache is None or _index_cache[0] != mtime:
+            _index_cache = (mtime, open(_index_path, encoding="utf-8").read())
+        origin = settings.site_url or str(request.base_url).rstrip("/")
+        return _index_cache[1].replace("{{SITE_URL}}", origin)
+
     @app.get("/{full_path:path}", include_in_schema=False)
-    def spa(full_path: str):
+    def spa(full_path: str, request: Request):
         candidate = os.path.join(_dist, full_path)
         if full_path and os.path.isfile(candidate):
             return FileResponse(candidate)
-        return FileResponse(os.path.join(_dist, "index.html"))
+        return Response(_render_index(request), media_type="text/html")

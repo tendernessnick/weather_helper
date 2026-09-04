@@ -14,7 +14,7 @@ from ..config import hk_now, settings
 from ..db import get_db
 from ..diagnostics import db_state
 from ..models import CheckIn, Court, Feedback, ForecastSnapshot, KvCache, \
-    NowcastSnapshot, Observation, PushSubscription, UserReport
+    NowcastSnapshot, Observation, PushSubscription, UserReport, VisitLog
 from ..scheduler import scheduler
 from ..schemas import FeedbackUpdateIn
 
@@ -251,4 +251,52 @@ def admin_activity(days: int = Query(default=30, ge=1, le=90),
             "active_web_push": active_push,
             "active_polling": active_poll,
         },
+    }
+
+
+@router.get("/admin/visits", dependencies=[Depends(require_admin)])
+def admin_visits(days: int = Query(default=30, ge=1, le=180),
+                 db: Session = Depends(get_db)):
+    """Referral rollup: page loads per acquisition source (e.g. a partner
+    app's link button) vs direct traffic, per source and per day. Answers
+    "did the partner button bring traffic" before/after a pitch."""
+    now = hk_now()
+    since = now - timedelta(days=days)
+
+    total = db.query(VisitLog).filter(VisitLog.created_at >= since).count()
+
+    by_source_rows = db.query(
+        VisitLog.source,
+        func.count().label("visits"),
+        func.count(func.distinct(VisitLog.device_id)).label("devices"),
+        func.min(VisitLog.created_at),
+        func.max(VisitLog.created_at),
+    ).filter(VisitLog.created_at >= since).group_by(VisitLog.source).all()
+
+    day_rows = db.execute(text(
+        "SELECT date(created_at) AS d, source, COUNT(*) AS c "
+        "FROM visits WHERE created_at >= :since GROUP BY d, source ORDER BY d"
+    ), {"since": since}).all()
+
+    by_day_map: dict[str, dict[str, int]] = {}
+    for d, source, count in day_rows:
+        by_day_map.setdefault(str(d), {})[source] = count
+    by_day = [{"date": (since.date() + timedelta(days=i)).isoformat(),
+               "visits": sum(by_day_map.get(
+                   (since.date() + timedelta(days=i)).isoformat(), {}).values()),
+               "by_source": by_day_map.get(
+                   (since.date() + timedelta(days=i)).isoformat(), {})}
+              for i in range(days + 1)]
+
+    return {
+        "days": days,
+        "total_visits": total,
+        "by_source": [{
+            "source": source,
+            "visits": visits,
+            "devices": devices,
+            "first_visit_at": _iso(first_at),
+            "last_visit_at": _iso(last_at),
+        } for source, visits, devices, first_at, last_at in by_source_rows],
+        "by_day": by_day,
     }

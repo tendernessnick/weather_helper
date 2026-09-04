@@ -225,3 +225,20 @@ class KvCache(Base):
     key: Mapped[str] = mapped_column(String(50), primary_key=True)
     value_json: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class VisitLog(Base):
+    """One page-load hit, attributed to an acquisition source.
+
+    The client sends ?from=/utm_source= values (e.g. a partner app's button);
+    the first source seen on a device sticks for first-touch attribution.
+    Kept ~180 days so referral traffic is comparable across a whole season.
+    """
+
+    __tablename__ = "visits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    source: Mapped[str] = mapped_column(String(40), default="direct", index=True)
+    path: Mapped[str] = mapped_column(String(200), default="/")
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)

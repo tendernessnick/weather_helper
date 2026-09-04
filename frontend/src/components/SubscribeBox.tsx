@@ -37,6 +37,10 @@ export default function SubscribeBox({ court }: { court: Court }) {
   const [message, setMessage] = useState<string | null>(null);
   const [tone, setTone] = useState<'ok' | 'err'>('ok');
   const [busy, setBusy] = useState(false);
+  // Known up front: in-app webviews often lack SW/Push entirely. The subscribe
+  // click still works (falls back to polling), this only sets expectations.
+  const pushCapable = typeof window !== 'undefined'
+    && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
   useEffect(() => {
     api.pushPublicKey().then((r) => setPushEnabled(r.enabled && !!r.public_key))
@@ -107,6 +111,11 @@ export default function SubscribeBox({ court }: { court: Court }) {
       <p className="mt-1 text-[12px] text-slate-500">
         {t('sub.note')}
       </p>
+      {!pushCapable && (
+        <p className="mt-2 rounded-[10px] bg-amber-50 px-2.5 py-1.5 text-[12px] leading-relaxed text-amber-800">
+          {t('sub.noPush')}
+        </p>
+      )}
       <div className="mt-2 flex items-center gap-2">
         <input
           type="datetime-local"

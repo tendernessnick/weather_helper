@@ -359,3 +359,30 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 - LCSD SmartPlay 可租订时段展示（API 已知：`data.smartplay.lcsd.gov.hk`，5 分钟更新）
 - 用户私藏/审核制私人球场；信任等级与举报机制；融合概率纳入评分验证体系
+
+## 第三方 App 接入预留（TennisGo 等合作洽谈）
+
+为「对方 App 加一个按钮链接到本站」的接入方式做的技术预留，兼容两种打开方式：系统/应用内浏览器外链、应用内 WebView。
+
+### 给合作方的接入方式
+
+- **推荐深链**：`/courts?from=tennisgo`（球场列表直接可达；`from` 值可自定，只保留小写字母数字 `-_`）
+- **打开方式优先级**：系统浏览器 > 应用内浏览器（SFSafariViewController / Custom Tabs）> WebView。WebView 下 PWA 安装与系统推送不可用（页内提醒自动兜底），定位可能被宿主拦截（上报会提示"复制到系统浏览器打开"）
+- 若用 WebView 加载，请放行 `allow="geolocation"` 权限策略，实况上报才可用
+
+### 来源流量追踪
+
+- 前端自动捕获 `?from=` / `?utm_source=`：首次带参访问记为该设备的来源（首触归因），其后每次页面加载上报一次
+- 查询：`GET /api/admin/visits?days=30`（Header `X-Admin-Token`），返回按来源汇总（访问数 / 设备数 / 首末次时间）与逐日分解——洽谈前后各拉一次即可量化"对方按钮带来多少流量"
+- 来源写入 `visits` 表，保留 180 天（每日 purge 任务自动清理）
+
+### 上线前检查单（洽谈前必做）
+
+1. **先定最终域名**：VAPID 密钥与推送订阅都绑定 origin，换域名 = 已有订阅全部作废
+2. **设置 `SITE_URL` 环境变量**（如 `https://your-domain.com`，末尾不带斜杠）：聊天 App / 爬虫生成链接预览时不执行 JS，后端在返回 index.html 时用它把 `og:image` 等替换为绝对 URL；未设置时回退到请求 Host
+3. **Railway 免费档冷启动** 30–60 秒，对方用户点按钮会白等——上 Hobby 档或加 keep-warm 探活
+4. 分享预览卡 `og-card.png`（1200×630）由 `npm run icons` 一并生成，改品牌视觉后记得重跑
+
+### 嵌入场景手动测试
+
+`frontend/scripts/iframe-test.html`：浏览器直接打开（双击即可），App 地址填本地服务（如 `http://localhost:8000`），勾选/取消 `allow="geolocation"` 可分别模拟宿主放行与拦截定位。验证点：深链直达、定位被拒的上报提示、无推送环境订阅框的黄条降级提示、`?from=` 打点落库。
