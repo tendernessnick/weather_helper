@@ -3,7 +3,7 @@ import { api } from '../api';
 import type { CourtListItem } from '../types';
 import { HK_LAND } from '../assets/hkGeo';
 import Icon from './Icon';
-import { useLang } from '../i18n';
+import { hintLines, useLang } from '../i18n';
 import type { TKey } from '../i18n';
 
 // HK display bbox (covers all courts plus margin)
@@ -344,8 +344,8 @@ export default function RainMap() {
 
       {nearestNote}
 
-      <p className="mt-1.5 text-[9px] leading-relaxed text-[#8E8E93]">
-        {t('map.footnote')}
+      <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-slate-600">
+        {hintLines(t('map.footnote'))}
       </p>
 
       {/* full-screen sheet */}
@@ -376,7 +376,7 @@ export default function RainMap() {
                 <Icon name="pin" className="h-3.5 w-3.5" />
                 {locating ? t('map.locating') : me ? t('map.located') : t('map.locate')}
               </button>
-              <p className="text-[9px] leading-snug text-[#8E8E93]">{t('map.footnote')}</p>
+              <p className="min-w-0 flex-1 whitespace-pre-line text-[11px] leading-snug text-slate-600">{hintLines(t('map.footnote'))}</p>
             </div>
           </div>
         </div>

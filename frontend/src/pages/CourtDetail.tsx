@@ -10,7 +10,7 @@ import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
 import CheckInCard from '../components/CheckInCard';
 import Icon from '../components/Icon';
-import { comfortNote, courtName, districtName, useLang } from '../i18n';
+import { comfortNote, courtName, districtName, hintLines, useLang } from '../i18n';
 
 /** Plain-language verdict for the next few hours, computed from zones. */
 function VerdictBanner({ weather }: { weather: WeatherResponse }) {
@@ -223,17 +223,17 @@ export default function CourtDetail() {
             <p className="mt-1.5 rounded-[10px] bg-[#F2F2F7] p-2.5 text-[12px] font-medium leading-relaxed text-[#3C3C43]">
               💡 {interpretation}
             </p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[#8E8E93]">
-              {t('detail.calibBasis', {
+            <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-slate-600">
+              {hintLines(t('detail.calibBasis', {
                 basis: calibration.basis === 'court' ? t('detail.basisCourt') : t('detail.basisPooled'),
                 n: calibration.n,
-              })}
+              }))}
             </p>
-            <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[11.5px]">
+            <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[12.5px] font-semibold">
               {calibration.mapping.map((m) => (
-                <div key={m.official_pct} className="rounded-[8px] bg-[#F2F2F7] py-1.5">
-                  <div className="text-[#8E8E93]">{t('detail.saidPct', { p: m.official_pct })}</div>
-                  <div className="text-sm font-bold text-slate-800">
+                <div key={m.official_pct} className="rounded-[8px] bg-[#161616]/[0.045] py-1.5">
+                  <div className="text-slate-500">{t('detail.saidPct', { p: m.official_pct })}</div>
+                  <div className="font-bold text-slate-900">
                     {t('detail.actualPct', { p: Math.round(m.corrected * 100) })}
                   </div>
                 </div>

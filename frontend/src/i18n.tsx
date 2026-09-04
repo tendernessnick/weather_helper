@@ -539,3 +539,14 @@ export function serverMsg(msg: string, t: TFn): string {
   const key = SERVER_KEYS[msg];
   return key ? t(key) : msg;
 }
+
+/** Break a long hint into one clause per line: phone screens scan clauses,
+ *  not wrapped blobs. ZH splits on ；。, EN on "; " and ". ". */
+export function hintLines(text: string): string {
+  return text
+    .replace(/([；。])/g, '$1\n')
+    .replace(/;\s+/g, ';\n')
+    .replace(/\.\s+/g, '.\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}

@@ -1,5 +1,5 @@
 import type { CourtScores, Metrics } from '../types';
-import { useLang } from '../i18n';
+import { hintLines, useLang } from '../i18n';
 
 function pct(v: number | null): string {
   return v === null ? '—' : `${Math.round(v * 100)}%`;
@@ -52,8 +52,8 @@ export default function ScoreCard({ scores }: { scores: CourtScores }) {
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <h2 className="text-[15px] font-bold tracking-tight">{t('score.title', { n: scores.window_days })}</h2>
-      <p className="mt-1 text-[12px] leading-relaxed text-[#8E8E93]">
-        {t('score.explain', { m: scores.min_samples })}
+      <p className="mt-1 whitespace-pre-line text-[12.5px] leading-relaxed text-slate-600">
+        {hintLines(t('score.explain', { m: scores.min_samples }))}
       </p>
       <div className="mt-2 space-y-2">
         <SourceCard
