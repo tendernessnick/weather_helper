@@ -75,6 +75,12 @@ function SourceCard({ title, question, src, windowDays }: { title: string; quest
         />
       </div>
 
+      {dec && (
+        <p className="mt-1.5 text-[10px] leading-relaxed text-[#8E8E93]">
+          💡 {t('ins.baseNote', { x: Math.round((1 - dec.base_rate) * 100) })}
+        </p>
+      )}
+
       {verdict && (
         <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${verdict.tone}`}>
           {verdict.label}
@@ -524,28 +530,35 @@ function DisagreementCard() {
               note={t('ins.window', { n: data.window_days, n2: data.n })}
             />
           </div>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-2.5">
             {[
-              { label: t('ins.disOmWet'), n: data.om_wet_n, right: data.om_wet_right, tone: 'bg-amber-400' },
-              { label: t('ins.disF3Wet'), n: data.f3_wet_n, right: data.f3_wet_right, tone: 'bg-sky-400' },
-            ].map((row) => (
-              <div key={row.label}>
-                <div className="flex items-baseline justify-between text-[11px]">
-                  <span className="text-slate-600">{row.label}</span>
-                  <span className="tabular-nums text-slate-500">
-                    {t('ins.disHitRate', {
-                      p: row.n > 0 ? Math.round((row.right / row.n) * 100) : '—',
-                      n: row.n,
-                    })}
-                  </span>
+              { label: t('ins.disOmWet'), n: data.om_wet_n, right: data.om_wet_right, tone: 'bg-amber-400', rightName: t('ins.disOm'), otherName: t('ins.disF3') },
+              { label: t('ins.disF3Wet'), n: data.f3_wet_n, right: data.f3_wet_right, tone: 'bg-sky-400', rightName: t('ins.disF3'), otherName: t('ins.disOm') },
+            ].map((row) => {
+              const rightPct = row.n > 0 ? Math.round((row.right / row.n) * 100) : null;
+              return (
+                <div key={row.label}>
+                  <div className="flex items-baseline justify-between text-[11px]">
+                    <span className="text-slate-600">{row.label}</span>
+                    <span className="tabular-nums text-slate-500">
+                      {rightPct === null ? `n=0`
+                        : t('ins.disBothRate', {
+                            a: row.rightName, x: rightPct,
+                            b: row.otherName, y: 100 - rightPct,
+                          })}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex h-3 overflow-hidden rounded-full bg-[#E5E5EA]">
+                    {rightPct !== null && (
+                      <div className={row.tone} style={{ width: `${rightPct}%` }} />
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-right text-[9px] tabular-nums text-slate-400">
+                    n={row.n}
+                  </div>
                 </div>
-                <div className="mt-1 flex h-3 overflow-hidden rounded-full bg-slate-100">
-                  {row.n > 0 && (
-                    <div className={row.tone} style={{ width: `${(row.right / row.n) * 100}%` }} />
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{verdict}</p>
         </>

@@ -17,6 +17,10 @@ from sqlalchemy.orm import Session
 from ..config import floor_hour, hk_now, settings
 from ..models import ForecastSnapshot, NowcastSnapshot, Observation, UserReport
 
+# List-page summaries are recomputed at most once a minute (see all_court_summaries).
+_SUMMARY_TTL = timedelta(seconds=60)
+_summaries_cache: dict = {"data": None, "built": None}
+
 
 @dataclass
 class Metrics:
@@ -79,6 +83,25 @@ def _user_outcomes(db: Session, court_id: str, since: datetime) -> dict[datetime
         raining = sum(device_votes.values())
         outcomes[hour] = raining * 2 >= len(device_votes)  # ties count as rain
     return outcomes
+
+
+def user_outcomes_all(db: Session, since: datetime) -> dict[str, dict[datetime, bool]]:
+    """Bulk _user_outcomes for every court at once: one query instead of one
+    per court (kills the N+1 in the ranking and divergence passes)."""
+    votes: dict[str, dict[datetime, dict[str, bool]]] = {}
+    for court_id, created_at, device_id, was_raining in db.execute(
+        select(UserReport.court_id, UserReport.created_at, UserReport.device_id,
+               UserReport.was_raining)
+        .where(UserReport.status == "accepted",
+               UserReport.created_at >= since)
+    ):
+        votes.setdefault(court_id, {}).setdefault(
+            floor_hour(created_at), {})[device_id] = bool(was_raining)
+    return {
+        court_id: {hour: sum(dv.values()) * 2 >= len(dv)  # ties count as rain
+                   for hour, dv in hv.items()}
+        for court_id, hv in votes.items()
+    }
 
 
 def _open_meteo_pairs(db: Session, court_id: str, since: datetime) -> list[tuple[datetime, bool, float]]:
@@ -172,10 +195,15 @@ def all_court_summaries(db: Session, window_days: int | None = None) -> dict[str
     """Lightweight per-court summary for the list view: OM accuracy vs stations.
 
     Loads the whole window once and aggregates in memory - tens of thousands of
-    rows at most, cheaper than 55 grouped subqueries.
+    rows at most, cheaper than 55 grouped subqueries. Cached briefly: the list
+    page hits this on every load and the numbers move at most hourly.
     """
     days = window_days or settings.window_days
-    since = hk_now() - timedelta(days=days)
+    now = hk_now()
+    if window_days is None and _summaries_cache["data"] is not None \
+            and now - _summaries_cache["built"] < _SUMMARY_TTL:
+        return _summaries_cache["data"]
+    since = now - timedelta(days=days)
 
     snapshots: dict[str, dict[datetime, tuple[int, bool]]] = {}
     for court_id, target, prob in db.execute(
@@ -208,4 +236,6 @@ def all_court_summaries(db: Session, window_days: int | None = None) -> dict[str
             "accuracy": d["accuracy"],
             "sufficient_samples": d["sufficient_samples"],
         }
+    if window_days is None:
+        _summaries_cache.update(data=summaries, built=now)
     return summaries

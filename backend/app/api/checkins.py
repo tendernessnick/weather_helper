@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import floor_hour, hk_now
+from ..config import floor_hour, hk_now, settings
 from ..db import get_db
 from ..models import CheckIn, Court, ForecastSnapshot, Observation
 
@@ -84,12 +84,12 @@ def _session_weather(db: Session, court_id: str, start, duration_h: float) -> di
     ).scalar()
 
     if not rain_hours:
-        if pop is not None and pop >= 50:
+        if pop is not None and pop >= settings.pop_rain_threshold:
             verdict, tag = "预报说会下，你赌赢了", "win"
         else:
             verdict, tag = "全程无雨", "clean"
     else:
-        if pop is not None and pop < 50:
+        if pop is not None and pop < settings.pop_rain_threshold:
             verdict, tag = f"遇雨 {len(rain_hours)} 小时——预报漏网之鱼", "ambush"
         else:
             verdict, tag = f"遇雨 {len(rain_hours)} 小时，预报有言在先", "hit"

@@ -68,20 +68,27 @@ def best_hours(
     ranked = _rank_hour(db, base, calib_f)
 
     # next 24h city-median risk profile, for "better hour" suggestions
+    # (one range query instead of one query per hour)
+    first = floor_hour(hk_now()) + timedelta(hours=1)
+    pops_by_hour: dict[datetime, list[int]] = {}
+    for target, prob in db.execute(
+        select(ForecastSnapshot.target_hour, ForecastSnapshot.precip_prob)
+        .where(ForecastSnapshot.target_hour >= first,
+               ForecastSnapshot.target_hour < first + timedelta(hours=24))
+    ):
+        pops_by_hour.setdefault(target, []).append(prob)
     hours = []
     for i in range(24):
-        h = floor_hour(hk_now()) + timedelta(hours=i + 1)
-        rows = db.execute(
-            select(ForecastSnapshot.precip_prob)
-            .where(ForecastSnapshot.target_hour == h)
-        ).scalars().all()
-        if rows:
-            pops = sorted(calib_f(p / 100.0) * 100 for p in rows)
-            m = len(pops) // 2
-            hours.append({
-                "hour": h.isoformat(),
-                "city_median_pop": int(pops[m - 1] if len(pops) % 2 == 0 else pops[m]),
-            })
+        h = first + timedelta(hours=i)
+        probs = pops_by_hour.get(h)
+        if not probs:
+            continue
+        pops = sorted(calib_f(p / 100.0) * 100 for p in probs)
+        m = len(pops) // 2
+        hours.append({
+            "hour": h.isoformat(),
+            "city_median_pop": int(pops[m - 1] if len(pops) % 2 == 0 else pops[m]),
+        })
 
     return {
         "hour": base.isoformat(),

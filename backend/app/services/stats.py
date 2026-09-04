@@ -182,16 +182,6 @@ def shrinkage(court_k: int, court_n: int, group_rate: float,
     return (court_k + prior_strength * group_rate) / (court_n + prior_strength)
 
 
-def onset_capture(onset_hours: list, warned_hours: set) -> dict:
-    """Of hours where rain actually started (dry -> wet), how often had the
-    F3 nowcast already flagged that hour?"""
-    if not onset_hours:
-        return {"onsets": 0, "captured": None}
-    captured = sum(1 for h in onset_hours if h in warned_hours)
-    return {"onsets": len(onset_hours), "captured": captured,
-            "capture_rate": captured / len(onset_hours)}
-
-
 def dual_truth_divergence(both_hours: list[tuple[bool, bool]]) -> dict:
     """Compare user reports with station observations hour by hour.
 
