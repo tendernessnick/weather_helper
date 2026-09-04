@@ -10,10 +10,16 @@
 - **球场列表**：全港 57 个公共网球场（54 个康文署场 LCSD 开放数据自动导入 + 海心公園、聯校運動中心、啟德體育園北斗園三处手工核实补录），A-Z 字母索引 + 中英文搜索
 - **未来 2 小时降雨**：天文台 SWIRLS 网格点临近预报（每 12 分钟更新、半小时一档、精确到球场坐标）
 - **逐小时降水概率**：Open-Meteo 集合预报（未来 48 小时，任意球场坐标）
+- **融合概率（0-6h）**：雷达覆盖内按「SWIRLS 70% + 校正预报 30%」加权，雷达之外按「校正预报 70% + 十年同期气候 30%」加权，
+  填补临近预报结束到中期预报之间的空档；0-6 小时的结论横幅按融合值判定
+- **雷电警报**：天文台对地闪电次数（按新界西/新界东/港岛及九龙/大屿山四区，每 15 分钟抓取），
+  球场所属区域过去 1 小时有对地闪电时显示红色警报横幅；预报有雷暴的时段在逐小时图上加 ⚡ 标记
 - **预报可信度评分**：对每个球场，分别给「天文台临近预报」和「Open-Meteo」打分
   （准确率 / 漏报率 / 误报率 / Brier，滚动 30 天，样本 <20 显示"数据积累中"）
 - **到场实况上报**：地理围栏（球场 500 米内）+ 2 小时冷却 + 每日上限 + 位移速度校验，防刷数据
 - **下雨风险推送**（PWA Web Push）：预订开打前 30 分钟，若概率 ≥50% 或临近预报有雨则提醒
+- **意见反馈**：任何页面页脚或球场页「反馈这个球场的数据问题」提交（功能建议 / Bug / 数据纠错 / 其他），
+  直达 /admin 看板的反馈收件箱，可标记已读 / 已解决 / 忽略；同设备 10 分钟冷却 + 每日 5 条防刷
 
 ## 架构
 
@@ -34,6 +40,7 @@
 | 实测雨量（验证真值） | [HKO 自动站过去一小时雨量](https://data.weather.gov.hk/weatherAPI/opendata/hourlyRainfall.php?lang=en)（36 站，映射到最近球场） | 15 分钟 |
 | 逐小时降水概率 | [Open-Meteo](https://open-meteo.com/)（免费非商用 1 万次/天，批量坐标） | 1 小时 |
 | 当前天气/警告 | HKO `rhrread` | 15 分钟 |
+| 对地闪电次数（4 区域） | [HKO LHL 开放数据](https://data.gov.hk/en-data/dataset/hk-hko-rss-cloud-ground-lightning-count-past-hour) | 15 分钟抓取（上游每小时更新） |
 | 球场名称/坐标 | [LCSD 康文署开放数据](https://www.lcsd.gov.hk/datagovhk/facility/facility-tc.json) | 启动导入 |
 
 ## 快速开始
@@ -88,6 +95,8 @@ cd backend && uv run pytest -q
 | `WINDOW_DAYS` / `MIN_SAMPLES` | `30` / `20` | 评分窗口与最小样本 |
 | `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | 空 | Web Push 密钥（生成：`npx web-push generate-vapid-keys`） |
 | `ADMIN_TOKEN` | 空 | 后台管理看板（`/admin`）的访问令牌，不设置则后台 API 返回 503 |
+| `FEEDBACK_COOLDOWN_MINUTES` | 10 | 意见反馈的同设备冷却分钟数 |
+| `FEEDBACK_DAILY_LIMIT` | 5 | 意见反馈的每设备每日上限 |
 | `CORS_ORIGINS` | `*` | 跨域白名单 |
 
 ## 部署
@@ -131,10 +140,12 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 仅站长可见的运营看板，凭令牌进入（浏览器打开 `https://你的域名/admin`，输入 `ADMIN_TOKEN` 的值，令牌只存在你浏览器的 localStorage，不会出现在 URL 里）。看板 60 秒自动刷新，内容包括：
 
-- **数据抓取新鲜度**：每个数据源（临近预报 / 雨量观测 / 当前天气 / 逐小时预报）最新一条数据距今多久，绿=按时、黄=略迟、红=停滞
-- **定时任务**：7 个后台任务的运行次数、失败次数、最近一次成功时间、下次运行倒计时、最近报错内容
+- **数据抓取新鲜度**：每个数据源（临近预报 / 雨量观测 / 当前天气 / 逐小时预报 / 雷电记录）最新一条数据距今多久，绿=按时、黄=略迟、红=停滞
+- **定时任务**：8 个后台任务的运行次数、失败次数、最近一次成功时间、下次运行倒计时、最近报错内容
 - **今日上报**：总数 / 已采纳 / 被拒（按拒绝原因分解），以及近 7 天采纳上报趋势
 - **最新上报流**：最近 50 条上报（含被拒），球场可点进详情页，可按"全部 / 已采纳 / 被拒"筛选
+- **用户反馈**：今日 / 待处理统计，按状态筛选（待处理 / 已读 / 已解决 / 已忽略），
+  每条含分类、全文、设备短号与关联球场链接，可直接流转状态
 - **用户活跃**：打卡（今日 / 7 天 / 累计）、7 天活跃设备数、推送与轮询订阅数
 - **数据库**：文件大小、创建时间（重部署后变新 = 卷丢了）、各表行数——即 `/api/health` 探针的可视化
 
@@ -142,19 +153,22 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 - `GET /api/courts?search=&prefix=A` 球场列表（含未来 2h 降雨徽章、可信度摘要）
 - `GET /api/courts/{id}` 球场详情 + 评分
-- `GET /api/courts/{id}/weather` 组合天气（临近预报 + 48h 概率 + 当前天气 + 警告）
+- `GET /api/courts/{id}/weather` 组合天气（临近预报 + 48h 概率 + 融合值 0-6h + 雷电 + 当前天气 + 警告）
 - `POST /api/reports`（Header `X-Device-ID: <uuid>`）到场实况上报
 - `GET /api/reports/status?court_id=` 上报冷却/配额状态
 - `GET /api/reports/latest?limit=5` 全站最近已采纳上报（首页"社区脉搏"，不含设备号）
+- `POST /api/feedback`（Header `X-Device-ID: <uuid>`）用户意见反馈（10 分钟冷却 / 每日 5 条）
+- `GET /api/feedback/status` 反馈冷却/配额状态
 - `GET /api/push/public-key` · `POST /api/subscriptions` · `DELETE /api/subscriptions?endpoint=`
 - `GET /api/stats/quality-trend?days=90` 预报准确率逐日走势（含 7 天滚动平滑）
 - `GET /api/stats/dry-ranking?month=0` 球场十年雨频率排行（month=0 全年，否则 1-12 月）
 - `GET /api/stats/disagreement` 两预报源分歧时的历史胜负统计
-- `GET /api/admin/overview`（Header `X-Admin-Token`）后台看板聚合数据（数据新鲜度 / 任务状态 / 上报流 / 行数）
+- `GET /api/admin/overview`（Header `X-Admin-Token`）后台看板聚合数据（数据新鲜度 / 任务状态 / 上报流 / 反馈统计 / 行数）
+- `GET /api/admin/feedback?status=`（Header `X-Admin-Token`）反馈收件箱
+- `PATCH /api/admin/feedback/{id}`（Header `X-Admin-Token`）流转反馈状态（new/ack/resolved/dismissed）
 - `GET /api/admin/activity?days=30`（Header `X-Admin-Token`）活跃趋势（DAU / 上报时刻分布 / 漏斗）
 
 ## 二期方向
 
 - LCSD SmartPlay 可租订时段展示（API 已知：`data.smartplay.lcsd.gov.hk`，5 分钟更新）
-- 用户私藏/审核制私人球场；预报概率按球场历史校准映射；信任等级与举报机制；
-  临近预报 2-6 小时空档的多源融合（OCF 等）
+- 用户私藏/审核制私人球场；信任等级与举报机制；融合概率纳入评分验证体系

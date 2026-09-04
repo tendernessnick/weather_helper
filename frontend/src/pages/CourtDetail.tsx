@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
-import type { CalibrationInfo, Court, CourtScores, WeatherResponse } from '../types';
+import type {
+  CalibrationInfo, Court, CourtScores, HourlyItem, LightningInfo,
+  WeatherResponse,
+} from '../types';
 import NowcastStrip from '../components/NowcastStrip';
 import HourlyBars from '../components/HourlyBars';
 import ScoreCard from '../components/ScoreCard';
@@ -9,8 +12,19 @@ import ReportSheet from '../components/ReportSheet';
 import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
 import CheckInCard from '../components/CheckInCard';
+import FeedbackSheet from '../components/FeedbackSheet';
 import Icon from '../components/Icon';
 import { comfortNote, courtName, districtName, hintLines, useLang } from '../i18n';
+import type { TKey } from '../i18n';
+
+/** Zone by the fused 0-6h value when present (same 30/60 thresholds the
+ *  backend uses); otherwise fall back to the per-hour zone from the API. */
+function zoneOf(h: HourlyItem): 'go' | 'edge' | 'no' {
+  if (h.fused_pop !== undefined) {
+    return h.fused_pop > 60 ? 'no' : h.fused_pop > 30 ? 'edge' : 'go';
+  }
+  return h.zone ?? 'go';
+}
 
 /** Plain-language verdict for the next few hours, computed from zones. */
 function VerdictBanner({ weather }: { weather: WeatherResponse }) {
@@ -19,14 +33,16 @@ function VerdictBanner({ weather }: { weather: WeatherResponse }) {
   if (hours.length === 0) return null;
 
   const worst = hours.reduce<string>((acc, h) => {
-    const z = h.zone ?? 'go';
+    const z = zoneOf(h);
     if (z === 'no' || acc === 'no') return 'no';
     if (z === 'edge' || acc === 'edge') return 'edge';
     return 'go';
   }, 'go');
-  const worstHour = hours.find((h) => (h.zone ?? 'go') === worst);
+  const worstHour = hours.find((h) => zoneOf(h) === worst);
   const hhmm = worstHour ? new Date(worstHour.hour).getHours().toString().padStart(2, '0') + ':00' : '';
-  const pop = worstHour ? (worstHour.corrected_pop ?? worstHour.pop) : 0;
+  const pop = worstHour
+    ? (worstHour.fused_pop ?? worstHour.corrected_pop ?? worstHour.pop)
+    : 0;
 
   const look = {
     go: { tile: 'bg-[#34C759]', icon: 'ball' as const, text: 'text-[#1B7A3D]' },
@@ -80,6 +96,29 @@ function ComfortBanner({ weather }: { weather: WeatherResponse }) {
   );
 }
 
+/** Lightning warning when the past hour saw cloud-to-ground flashes in the
+ *  court's region. Safety-first: red, before any rain advice. */
+function LightningBanner({ lightning }: { lightning: LightningInfo }) {
+  const { t } = useLang();
+  if (lightning.cg_count <= 0) return null;
+  return (
+    <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#FF3B30] text-white">
+        <Icon name="bolt" className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="text-[12px] font-bold text-[#B3261E]">{t('lightning.title')}</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-[#B3261E]/90">
+          {t('lightning.body', {
+            region: t(`lightning.r.${lightning.region}` as TKey),
+            n: lightning.cg_count,
+          })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function CourtDetail() {
   const { t, lang } = useLang();
   const { id } = useParams<{ id: string }>();
@@ -89,6 +128,7 @@ export default function CourtDetail() {
   const [calibration, setCalibration] = useState<CalibrationInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [fbOpen, setFbOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -132,6 +172,7 @@ export default function CourtDetail() {
   const temp = weather.current?.temperature?.data
     ?.find((tm) => tm.place === 'Hong Kong Observatory')?.value;
   const humidity = weather.current?.humidity?.data?.[0]?.value;
+  const uv = weather.current?.uvindex?.data?.[0]?.value;
   const microclimate = calibration?.divergence?.microclimate;
 
   return (
@@ -166,8 +207,15 @@ export default function CourtDetail() {
         {(temp !== undefined || humidity !== undefined) && (
           <p className="mt-3 border-t border-black/5 pt-2.5 text-[12px] text-[#6D6D72]">
             {t('detail.now', { t: temp ?? '—', h: humidity ?? '—' })}
+            {uv != null && ` · UV ${uv}`}
           </p>
         )}
+        <button
+          onClick={() => setFbOpen(true)}
+          className="mt-2.5 border-t border-black/5 pt-2 text-left text-[12px] font-medium text-[#007AFF] active:opacity-60"
+        >
+          {t('fb.entryCourt')}
+        </button>
       </section>
 
       {weather.warnings.length > 0 && (
@@ -183,6 +231,8 @@ export default function CourtDetail() {
           </div>
         </div>
       )}
+
+      {weather.lightning && <LightningBanner lightning={weather.lightning} />}
 
       <VerdictBanner weather={weather} />
       <ComfortBanner weather={weather} />
@@ -246,6 +296,9 @@ export default function CourtDetail() {
       {scores && <ScoreCard scores={scores} />}
       <CheckInCard court={court} />
       <SubscribeBox court={court} />
+      {fbOpen && (
+        <FeedbackSheet court={court} presetCategory="data" onClose={() => setFbOpen(false)} />
+      )}
     </div>
   );
 }

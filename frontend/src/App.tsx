@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import { useState } from 'react';
 import Home from './pages/Home';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
@@ -6,6 +7,7 @@ import Best from './pages/Best';
 import Insights from './pages/Insights';
 import Admin from './pages/Admin';
 import ReminderPoller from './components/ReminderPoller';
+import FeedbackSheet from './components/FeedbackSheet';
 import Icon from './components/Icon';
 import { LANG_META, useLang, useT } from './i18n';
 import type { Lang } from './i18n';
@@ -54,6 +56,7 @@ function LangButton() {
 
 export default function App() {
   const t = useT();
+  const [fbOpen, setFbOpen] = useState(false);
   return (
     <div className="relative isolate mx-auto min-h-screen max-w-3xl overflow-hidden">
       {/* atmosphere: dawn-sky gradient + soft color blobs (Apple-weather style) */}
@@ -103,7 +106,15 @@ export default function App() {
       <footer className="px-4 pb-8 text-center text-[11px] leading-relaxed text-[#8E8E93]">
         {t('app.footer1')}<br />
         {t('app.footer2')}
+        <button
+          onClick={() => setFbOpen(true)}
+          className="mt-2 block w-full text-[12px] font-medium text-[#007AFF] active:opacity-60"
+        >
+          {t('fb.entry')}
+        </button>
       </footer>
+
+      {fbOpen && <FeedbackSheet onClose={() => setFbOpen(false)} />}
     </div>
   );
 }

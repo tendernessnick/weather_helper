@@ -3,7 +3,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import { BarChart3, Bell, ChevronRight, Clock, CloudDrizzle, CloudLightning,
          CloudRain, Droplets, Gauge, MapPin, Phone, Search, Sun, Timer,
-         TriangleAlert, Users } from 'lucide-react';
+         TriangleAlert, Users, Zap } from 'lucide-react';
 
 type IconProps = { className?: string; strokeWidth?: number };
 
@@ -41,6 +41,7 @@ const ICONS: Record<string, ComponentType<IconProps>> = {
   chart: BarChart3,
   people: Users,
   clockbolt: Timer,
+  bolt: Zap,
 };
 
 export type IconName = keyof typeof ICONS;

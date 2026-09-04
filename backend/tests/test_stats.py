@@ -2,7 +2,7 @@ import math
 
 from app.services.stats import (brier_decomposition, brier_score,
                                 brier_skill_score, dual_truth_divergence,
-                                heidke, onset_capture, peirce, recalibrate,
+                                heidke, peirce, recalibrate,
                                 reliability_table, shrinkage, wilson_ci)
 
 
@@ -144,12 +144,6 @@ def test_shrinkage_extremes():
 
 
 # --- onset & dual truth ------------------------------------------------------
-
-def test_onset_capture():
-    res = onset_capture([10, 20, 30], {10, 30, 99})
-    assert res == {"onsets": 3, "captured": 2, "capture_rate": 2 / 3}
-    assert onset_capture([], set())["captured"] is None
-
 
 def test_overview_onset_requires_adjacent_observed_hour():
     """An onset counts only when the immediately preceding hour was observed

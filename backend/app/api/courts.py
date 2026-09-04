@@ -10,7 +10,8 @@ from ..config import hk_now, settings
 from ..db import get_db
 from ..models import (Climatology, Court, ForecastSnapshot, NowcastSnapshot,
                       UserReport)
-from ..services import analytics, comfort, hko_nowcast, verification
+from ..services import analytics, comfort, fusion, hko_nowcast, verification
+from ..services import lightning as lightning_svc
 from ..services.hko import get_cached_current_weather
 
 router = APIRouter(tags=["courts"])
@@ -196,6 +197,35 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
             "comfort": comfort.comfort_level(s.apparent_temp, s.wind_kmh),
         })
 
+    # Fused 0-6h curve: SWIRLS-weighted inside radar coverage, calibrated
+    # Open-Meteo + climatology beyond it (see services/fusion.py).
+    fused = fusion.fused_overlay(
+        steps=nowcast[1] if nowcast else [], fetched_at=nowcast[0] if nowcast else None,
+        hourly=hourly_out, now=now, threshold_mm=settings.nowcast_mm_threshold)
+    for item, (fused_pop, used_swirls) in zip(hourly_out, fused):
+        item["fused_pop"] = fused_pop
+        item["fused_swirls"] = used_swirls
+
+    # Past-hour lightning for the court's region; the feed is hourly, so a
+    # cached row older than 2h is treated as no data rather than "no flashes".
+    lightning_out = None
+    light = lightning_svc.get_cached_lightning(db)
+    if light:
+        try:
+            light_age = now - datetime.fromisoformat(light["fetched_at"])
+        except (KeyError, TypeError, ValueError):
+            light_age = None
+        if light_age is not None and light_age <= timedelta(hours=2):
+            region = lightning_svc.region_for_court(court.lat, court.lon)
+            lightning_out = {
+                "region": region,
+                "cg_count": (light.get("regions") or {}).get(region, 0),
+                "total_cg": light.get("total", 0),
+                "cloud_count": light.get("cloud", 0),
+                "period": light.get("period"),
+                "fetched_at": light.get("fetched_at"),
+            }
+
     return {
         "court_id": court_id,
         "nowcast": {
@@ -207,8 +237,11 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
         "persistence": analytics.persistence_card(db, court_id),
         "current": current,
         "warnings": warnings,
+        "lightning": lightning_out,
         "sources": {
             "nowcast": "HKO SWIRLS gridded rainfall nowcast (0-2h, per 30 min)",
             "hourly": "Open-Meteo ensemble (hourly probability, up to 48h)",
+            "fused": "SWIRLS-weighted blend with calibrated forecast + climatology (0-6h)",
+            "lightning": "HKO cloud-to-ground flash counts, past hour by region",
         },
     }

@@ -195,6 +195,28 @@ class CheckIn(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class Feedback(Base):
+    """Free-form user feedback (suggestions, bugs, data fixes) for the admin.
+
+    Not tied to any weather pipeline - just an inbox: submitted, listed in
+    the admin dashboard, and walked through status by the admin.
+    """
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    court_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # suggestion | bug | data | other
+    category: Mapped[str] = mapped_column(String(20))
+    message: Mapped[str] = mapped_column(Text)
+    page: Mapped[str] = mapped_column(String(200), default="")
+    # new | ack | resolved | dismissed
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)
+    admin_note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
 class KvCache(Base):
     """Small cache for upstream payloads shown verbatim (current weather, etc.)."""
 

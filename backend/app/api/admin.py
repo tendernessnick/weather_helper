@@ -13,9 +13,10 @@ from sqlalchemy.orm import Session
 from ..config import hk_now, settings
 from ..db import get_db
 from ..diagnostics import db_state
-from ..models import CheckIn, Court, ForecastSnapshot, KvCache, NowcastSnapshot, \
-    Observation, PushSubscription, UserReport
+from ..models import CheckIn, Court, Feedback, ForecastSnapshot, KvCache, \
+    NowcastSnapshot, Observation, PushSubscription, UserReport
 from ..scheduler import scheduler
+from ..schemas import FeedbackUpdateIn
 
 router = APIRouter(tags=["admin"])
 
@@ -65,6 +66,7 @@ def admin_overview(db: Session = Depends(get_db)):
     week_ago = now - timedelta(days=7)
 
     current_kv = db.get(KvCache, "current_weather")
+    lightning_kv = db.get(KvCache, "lightning")
     sources = [
         _source("nowcast", db.query(func.max(NowcastSnapshot.fetched_at)).scalar(),
                 12 * 60, now),
@@ -74,6 +76,8 @@ def admin_overview(db: Session = Depends(get_db)):
                 15 * 60, now),
         _source("forecast", db.query(func.max(ForecastSnapshot.fetched_at)).scalar(),
                 60 * 60, now),
+        _source("lightning", lightning_kv.updated_at if lightning_kv else None,
+                15 * 60, now),
     ]
 
     by_status = dict(db.query(UserReport.status, func.count())
@@ -143,8 +147,55 @@ def admin_overview(db: Session = Depends(get_db)):
         "checkins": checkins,
         "subscriptions": subscriptions,
         "devices_7d": len(devices),
+        "feedback": {
+            "today": db.query(Feedback).filter(Feedback.created_at >= day_start).count(),
+            "new_total": db.query(Feedback).filter(Feedback.status == "new").count(),
+        },
         "db": db_state(),
     }
+
+
+@router.get("/admin/feedback", dependencies=[Depends(require_admin)])
+def admin_feedback(
+    status: str = Query(default="all",
+                        pattern="^(all|new|ack|resolved|dismissed)$"),
+    limit: int = Query(default=100, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """The feedback inbox, newest first; optionally filtered by status."""
+    q = db.query(Feedback, Court).outerjoin(Court, Feedback.court_id == Court.id)
+    if status != "all":
+        q = q.filter(Feedback.status == status)
+    rows = (q.order_by(Feedback.created_at.desc(), Feedback.id.desc())
+            .limit(limit).all())
+    return {"feedback": [{
+        "id": f.id,
+        "category": f.category,
+        "message": f.message,
+        "page": f.page,
+        "status": f.status,
+        "admin_note": f.admin_note,
+        "court_id": f.court_id,
+        "court_name_en": c.name_en if c else None,
+        "court_name_tc": c.name_tc if c else None,
+        "court_name_sc": c.name_sc if c else None,
+        "device_id": f.device_id,
+        "created_at": _iso(f.created_at),
+    } for f, c in rows]}
+
+
+@router.patch("/admin/feedback/{feedback_id}", dependencies=[Depends(require_admin)])
+def update_feedback(feedback_id: int, body: FeedbackUpdateIn,
+                    db: Session = Depends(get_db)):
+    row = db.get(Feedback, feedback_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="feedback not found")
+    if body.status is not None:
+        row.status = body.status
+    if body.admin_note is not None:
+        row.admin_note = body.admin_note
+    db.commit()
+    return {"id": row.id, "status": row.status, "admin_note": row.admin_note}
 
 
 @router.get("/admin/activity", dependencies=[Depends(require_admin)])

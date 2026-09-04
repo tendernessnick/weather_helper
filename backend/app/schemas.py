@@ -41,3 +41,15 @@ class PollingSubscriptionIn(BaseModel):
     court_id: str
     play_at: datetime  # HK local naive time
     hours_before: float = Field(default=0.5, ge=0.1, le=24)
+
+
+class FeedbackIn(BaseModel):
+    category: str = Field(pattern="^(suggestion|bug|data|other)$")
+    message: str = Field(min_length=10, max_length=1000)
+    court_id: str | None = None
+    page: str | None = Field(default=None, max_length=200)
+
+
+class FeedbackUpdateIn(BaseModel):
+    status: str | None = Field(default=None, pattern="^(new|ack|resolved|dismissed)$")
+    admin_note: str | None = Field(default=None, max_length=2000)

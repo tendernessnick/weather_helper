@@ -83,6 +83,14 @@ const S = {
   'now.empty': ['暂无临近预报数据，请稍后刷新', '暫無臨近預報數據，請稍後刷新', 'No nowcast yet — refresh later'],
   'now.footnote': ['天文台雷达外推，每 12 分钟更新。0-2 小时内最可信赖的预报。', '天文台雷達外推，每 12 分鐘更新。0-2 小時內最可信賴的預報。', 'HKO radar extrapolation, every 12 min. The most trusted source for 0–2h.'],
 
+  // --- lightning ---
+  'lightning.title': ['雷电警报', '雷電警報', 'Lightning alert'],
+  'lightning.body': ['过去 1 小时{region}录得 {n} 次对地闪电——雷暴期间请立即离开露天球场，改期或转室内场地。', '過去 1 小時{region}錄得 {n} 次對地閃電——雷暴期間請立即離開露天球場，改期或轉室內場地。', '{n} cloud-to-ground flashes in {region} in the past hour — leave open courts during thunderstorms; reschedule or move indoors.'],
+  'lightning.r.ntw': ['新界西', '新界西', 'New Territories West'],
+  'lightning.r.nte': ['新界东', '新界東', 'New Territories East'],
+  'lightning.r.hki_kln': ['香港岛及九龙', '香港島及九龍', 'HK Island & Kowloon'],
+  'lightning.r.lantau': ['大屿山', '大嶼山', 'Lantau'],
+
   // --- hourly bars ---
   'hourly.title': ['逐小时降水概率（未来 48 小时）', '逐小時降水概率（未來 48 小時）', 'Hourly rain chance (next 48h)'],
   'hourly.source': ['Open-Meteo 集合预报', 'Open-Meteo 集合預報', 'Open-Meteo ensemble'],
@@ -110,6 +118,17 @@ const S = {
   'hourly.vWet': ['校正后 {c}%，下雨是大概率事件，这个时段不建议硬打', '校正後 {c}%，下雨是大概率事件，這個時段不建議硬打', 'Corrected {c}% — rain is likely; better not to force this slot'],
   'hourly.vEdge': ['校正后 {c}%，属于五五开的边缘时段：能改就改，要打就盯紧临近预报', '校正後 {c}%，屬於五五開的邊緣時段：能改就改，要打就盯緊臨近預報', 'Corrected {c}% — a coin-flip slot: reschedule if you can, else watch the nowcast'],
   'hourly.vLow': ['官方 {o}%、校正后 {c}%，风险不高', '官方 {o}%、校正後 {c}%，風險不高', 'Official {o}%, corrected {c}% — low risk'],
+  'hourly.metricPop': ['降雨概率', '降雨概率', 'Rain'],
+  'hourly.metricTemp': ['体感温度', '體感溫度', 'Feels'],
+  'hourly.metricWind': ['风速', '風速', 'Wind'],
+  'hourly.legendFused': ['融合值 0-6h', '融合值 0-6h', 'fused 0–6h'],
+  'hourly.tipFused': ['融合值 {p}%', '融合值 {p}%', 'fused {p}%'],
+  'hourly.fusedLineRadar': ['融合值 {f}%（雷达临近 70% + 校正预报 30%）', '融合值 {f}%（雷達臨近 70% + 校正預報 30%）', 'fused {f}% (radar nowcast 70% + corrected forecast 30%)'],
+  'hourly.fusedLineClim': ['融合值 {f}%（校正预报 70% + 十年同期 30%）', '融合值 {f}%（校正預報 70% + 十年同期 30%）', 'fused {f}% (corrected forecast 70% + past-10y 30%)'],
+  'hourly.vFuseHigh': ['融合值 {f}%，下雨是大概率事件，这个时段不建议硬打', '融合值 {f}%，下雨是大概率事件，這個時段不建議硬打', 'Fused {f}% — rain is likely; better not to force this slot'],
+  'hourly.vFuseEdge': ['融合值 {f}%，五五开的边缘时段：能改就改，要打就盯紧临近预报', '融合值 {f}%，五五開的邊緣時段：能改就改，要打就盯緊臨近預報', 'Fused {f}% — a coin-flip slot: reschedule if you can, else watch the nowcast'],
+  'hourly.vFuseLow': ['雷达与校正预报融合后只有 {f}%，这一小时风险不大', '雷達與校正預報融合後只有 {f}%，這一小時風險不大', 'Fused only {f}% — low risk this hour'],
+  'hourly.thunder': ['⚠️ 该时段预报有雷暴', '⚠️ 該時段預報有雷暴', '⚠️ thunderstorm forecast this hour'],
 
   // --- score card ---
   'score.title': ['预报可信吗？（近 {n} 天）', '預報可信嗎？（近 {n} 天）', 'Can you trust the forecasts? (last {n}d)'],
@@ -343,6 +362,25 @@ const S = {
   'home.callTitle': ['你看到的天气，正是别人想知道的', '你看到的天氣，正是別人想知道的', 'The sky you see is the one others are wondering about'],
   'home.callBody': ['这里没有商业数据源，天气靠球友一条条报出来。你顺手一报，正纠结去不去的人心里就有数了。', '這裡沒有商業數據源，天氣靠球友一條條報出來。你順手一報，正糾結去不去的人心裡就有數了。', "There's no paid data feed here — courts are read by players, one report at a time. Yours might settle it for someone still hesitating by the door."],
 
+  // --- feedback (user-facing) ---
+  'fb.entry': ['意见反馈', '意見回饋', 'Feedback'],
+  'fb.entryCourt': ['反馈这个球场的数据问题', '回饋這個球場的數據問題', 'Report a problem with this court'],
+  'fb.title': ['意见反馈', '意見回饋', 'Feedback'],
+  'fb.subtitle': ['功能建议、Bug、数据纠错都欢迎，直接送达管理员。', '功能建議、Bug、數據糾錯都歡迎，直接送達管理員。', 'Suggestions, bugs, data fixes — sent straight to the admin.'],
+  'fb.cat.suggestion': ['功能建议', '功能建議', 'Suggestion'],
+  'fb.cat.bug': ['问题 Bug', '問題 Bug', 'Bug'],
+  'fb.cat.data': ['数据纠错', '數據糾錯', 'Data fix'],
+  'fb.cat.other': ['其他', '其他', 'Other'],
+  'fb.placeholder': ['说点什么（至少 10 个字）…', '說點什麼（至少 10 個字）…', 'Tell us what happened (at least 10 characters)…'],
+  'fb.count': ['{n}/1000', '{n}/1000', '{n}/1000'],
+  'fb.send': ['提交反馈', '提交回饋', 'Send'],
+  'fb.sending': ['提交中…', '提交中…', 'Sending…'],
+  'fb.done': ['已收到，谢谢你的反馈！管理员会在后台看到。', '已收到，謝謝你的回饋！管理員會在後台看到。', "Got it — thanks! The admin will see this in the dashboard."],
+  'fb.close': ['关闭', '關閉', 'Close'],
+  'fb.fail': ['提交失败：{msg}', '提交失敗：{msg}', 'Send failed: {msg}'],
+  'server.fbCooldown': ['刚提交过反馈，稍等几分钟再来', '剛提交過回饋，稍等幾分鐘再來', 'You just sent feedback — wait a few minutes'],
+  'server.fbLimit': ['今日反馈已达上限，明天再来', '今日回饋已達上限，明天再來', 'Daily feedback limit reached'],
+
   // --- admin dashboard (/admin, token-gated) ---
   'admin.title': ['后台管理', '後台管理', 'Admin'],
   'admin.subtitle': ['数据与运营看板 · 仅管理员可见', '數據與營運看板 · 僅管理員可見', 'Ops dashboard · admin only'],
@@ -369,12 +407,14 @@ const S = {
   'admin.source.rainfall': ['雨量站观测 · 每 15 分钟', '雨量站觀測 · 每 15 分鐘', 'Gauge rainfall · every 15 min'],
   'admin.source.current': ['当前天气 · 每 15 分钟', '現時天氣 · 每 15 分鐘', 'Current weather · every 15 min'],
   'admin.source.forecast': ['逐小时预报 · 每 60 分钟', '逐小時預報 · 每 60 分鐘', 'Hourly forecast · every 60 min'],
+  'admin.source.lightning': ['雷电记录 · 每 15 分钟', '雷電記錄 · 每 15 分鐘', 'Lightning · every 15 min'],
   'admin.noData': ['尚无数据', '尚無數據', 'no data yet'],
   'admin.jobsTitle': ['定时任务', '定時任務', 'Scheduled jobs'],
   'admin.job.ingest_nowcast': ['抓取临近预报', '擷取臨近預報', 'Ingest nowcast'],
   'admin.job.ingest_rainfall': ['抓取雨量观测', '擷取雨量觀測', 'Ingest rainfall'],
   'admin.job.ingest_current': ['抓取当前天气', '擷取現時天氣', 'Ingest current weather'],
   'admin.job.ingest_open_meteo': ['抓取逐小时预报', '擷取逐小時預報', 'Ingest hourly forecast'],
+  'admin.job.ingest_lightning': ['抓取雷电记录', '擷取雷電記錄', 'Ingest lightning'],
   'admin.job.push_check': ['推送提醒检查', '推送提醒檢查', 'Push reminder check'],
   'admin.job.purge': ['清理过期数据', '清理過期數據', 'Purge old rows'],
   'admin.job.climate_update': ['气候统计回填', '氣候統計回填', 'Climatology top-up'],
@@ -429,6 +469,18 @@ const S = {
   'admin.table.accepted_user_reports': ['上报（已采纳）', '上報（已採納）', 'Reports (accepted)'],
   'admin.table.checkins': ['打卡', '打卡', 'Check-ins'],
   'admin.table.push_subscriptions': ['提醒订阅', '提醒訂閱', 'Subscriptions'],
+  'admin.table.feedback': ['用户反馈', '用戶回饋', 'Feedback'],
+  'admin.fbTitle': ['用户反馈', '用戶回饋', 'User feedback'],
+  'admin.fb.today': ['今日反馈', '今日回饋', 'Today'],
+  'admin.fb.pending': ['待处理', '待處理', 'Pending'],
+  'admin.fb.empty': ['还没有反馈', '還沒有回饋', 'No feedback yet'],
+  'admin.fb.new': ['待处理', '待處理', 'New'],
+  'admin.fb.ack': ['已读', '已讀', 'Ack'],
+  'admin.fb.resolved': ['已解决', '已解決', 'Resolved'],
+  'admin.fb.dismissed': ['已忽略', '已忽略', 'Dismissed'],
+  'admin.fb.ackBtn': ['已读', '已讀', 'Ack'],
+  'admin.fb.resolveBtn': ['解决', '解決', 'Resolve'],
+  'admin.fb.dismissBtn': ['忽略', '忽略', 'Dismiss'],
 } as const;
 
 export type TKey = keyof typeof S;
@@ -442,6 +494,8 @@ export const WEEKDAYS: Record<Lang, readonly string[]> = {
 // Server-side error details that users may see verbatim → translate the known ones.
 const SERVER_KEYS: Record<string, TKey> = {
   '同球场 6 小时内已打卡过': 'server.checkinCooldown',
+  'You just sent feedback - try again in a few minutes.': 'server.fbCooldown',
+  'Daily feedback limit reached.': 'server.fbLimit',
 };
 
 function detectLang(): Lang {

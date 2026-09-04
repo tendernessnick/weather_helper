@@ -2,8 +2,8 @@ import { getDeviceId } from './device';
 import type {
   AdminActivity, AdminOverview, BestResponse, CalibrationInfo, CheckinReport,
   CourtListItem, CourtRankRow, CourtScores, DisagreementStats, DryRanking,
-  HourProfileRow, LatestReport, LeadBucket, QualityTrend, RecentReport,
-  Reminder, ReportStatus, StatsOverview, WeatherResponse,
+  FeedbackRow, HourProfileRow, LatestReport, LeadBucket, QualityTrend,
+  RecentReport, Reminder, ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
 
 const DEVICE_ID = getDeviceId();
@@ -141,6 +141,31 @@ export const api = {
   peekCode: (code: string) =>
     request<{ exists: boolean; checkins: number; reports: number }>(
       `/api/checkins/peek?code=${encodeURIComponent(code)}`),
+
+  submitFeedback: (body: {
+    category: string; message: string;
+    court_id?: string | null; page?: string | null;
+  }) => request<{ status: string }>('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+
+  feedbackStatus: () =>
+    request<{ cooldown_remaining_sec: number; feedback_today: number; daily_limit: number }>(
+      '/api/feedback/status'),
+
+  adminFeedback: (token: string, status: string) =>
+    request<{ feedback: FeedbackRow[] }>(`/api/admin/feedback?status=${status}`, {
+      headers: { 'X-Admin-Token': token },
+    }),
+
+  adminFeedbackUpdate: (token: string, id: number,
+                        body: { status?: string; admin_note?: string }) =>
+    request<{ id: number; status: string }>(`/api/admin/feedback/${id}`, {
+      method: 'PATCH',
+      headers: { 'X-Admin-Token': token },
+      body: JSON.stringify(body),
+    }),
 
   adminOverview: (token: string) =>
     request<AdminOverview>('/api/admin/overview', {

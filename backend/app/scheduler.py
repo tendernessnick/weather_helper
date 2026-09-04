@@ -16,7 +16,7 @@ from .config import hk_now, settings
 from .db import SessionLocal
 from .models import (Climatology, ForecastLead, ForecastSnapshot, NowcastSnapshot,
                      Observation, Persistence, UserReport)
-from .services import climate, hko, hko_nowcast, open_meteo, push
+from .services import climate, hko, hko_nowcast, lightning, open_meteo, push
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,11 @@ def _job_ingest_current():
 def _job_ingest_open_meteo():
     with SessionLocal() as db:
         open_meteo.ingest_open_meteo(db)
+
+
+def _job_ingest_lightning():
+    with SessionLocal() as db:
+        lightning.ingest_lightning(db)
 
 
 def _job_push_check():
@@ -65,6 +70,9 @@ JOBS = [
     ("ingest_nowcast", _job_ingest_nowcast, 12 * 60),
     ("ingest_rainfall", _job_ingest_rainfall, 15 * 60),
     ("ingest_current", _job_ingest_current, 15 * 60),
+    # The LHL feed updates hourly; fetching more often is cheap and keeps the
+    # admin freshness dot meaningful.
+    ("ingest_lightning", _job_ingest_lightning, 15 * 60),
     ("ingest_open_meteo", _job_ingest_open_meteo, 60 * 60),
     ("push_check", _job_push_check, 5 * 60),
     ("purge", _job_purge, 24 * 3600),

@@ -48,6 +48,8 @@ export interface HourlyItem {
   corrected_pop?: number;
   climatology_pop?: number | null;
   zone?: 'go' | 'edge' | 'no';
+  fused_pop?: number;
+  fused_swirls?: boolean;
   mm: number;
   weather_code: number;
   wind_kmh: number;
@@ -70,10 +72,21 @@ export interface CurrentWeather {
   iconUpdateTime: string;
   temperature?: { data: { place: string; value: number; unit: string }[] };
   humidity?: { data: { place: string; value: number; unit: string }[] };
-  uvindex?: string;
+  uvindex?: { data?: { value?: number; place?: string }[] };
   warningMessage?: string[];
   updateTime: string;
   [key: string]: unknown;
+}
+
+export type LightningRegion = 'ntw' | 'nte' | 'hki_kln' | 'lantau';
+
+export interface LightningInfo {
+  region: LightningRegion;
+  cg_count: number;
+  total_cg: number;
+  cloud_count: number;
+  period: string | null;
+  fetched_at: string;
 }
 
 export interface WeatherResponse {
@@ -84,6 +97,7 @@ export interface WeatherResponse {
   persistence?: PersistenceCard | null;
   current: CurrentWeather | null;
   warnings: string[];
+  lightning?: LightningInfo | null;
   sources: Record<string, string>;
 }
 
@@ -320,7 +334,7 @@ export interface DisagreementStats {
 // --- admin dashboard ---
 
 export interface AdminSource {
-  key: 'nowcast' | 'rainfall' | 'current' | 'forecast';
+  key: 'nowcast' | 'rainfall' | 'current' | 'forecast' | 'lightning';
   last_data_at: string | null;
   age_sec: number | null;
   interval_sec: number;
@@ -365,7 +379,26 @@ export interface AdminOverview {
   checkins: { today: number; week: number; total: number };
   subscriptions: { web_push: number; polling: number };
   devices_7d: number;
+  feedback: { today: number; new_total: number };
   db: Record<string, string | number | null>;
+}
+
+export type FeedbackCategory = 'suggestion' | 'bug' | 'data' | 'other';
+export type FeedbackStatus = 'new' | 'ack' | 'resolved' | 'dismissed';
+
+export interface FeedbackRow {
+  id: number;
+  category: FeedbackCategory;
+  message: string;
+  page: string;
+  status: FeedbackStatus;
+  admin_note: string;
+  court_id: string | null;
+  court_name_en: string | null;
+  court_name_tc: string | null;
+  court_name_sc: string | null;
+  device_id: string;
+  created_at: string;
 }
 
 export interface AdminActivity {

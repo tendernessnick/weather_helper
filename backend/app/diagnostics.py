@@ -37,6 +37,7 @@ def db_state() -> dict:
                 ("user_reports_total", "user_reports"),
                 ("checkins", "checkins"),
                 ("push_subscriptions", "push_subscriptions"),
+                ("feedback", "feedback"),
             ):
                 out[label] = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
             out["accepted_user_reports"] = db.execute(

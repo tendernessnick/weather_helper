@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api';
 import { courtName, useLang } from '../i18n';
 import type { TKey } from '../i18n';
-import type { AdminActivity, AdminOverview as AdminData, AdminSource } from '../types';
+import type {
+  AdminActivity, AdminOverview as AdminData, AdminSource, FeedbackRow,
+  FeedbackStatus,
+} from '../types';
 
 const TOKEN_KEY = 'wh_admin_token';
 
@@ -18,6 +21,7 @@ const SRC_LABEL: Record<AdminSource['key'], TKey> = {
   rainfall: 'admin.source.rainfall',
   current: 'admin.source.current',
   forecast: 'admin.source.forecast',
+  lightning: 'admin.source.lightning',
 };
 
 const JOB_LABEL: Record<string, TKey> = {
@@ -25,9 +29,31 @@ const JOB_LABEL: Record<string, TKey> = {
   ingest_rainfall: 'admin.job.ingest_rainfall',
   ingest_current: 'admin.job.ingest_current',
   ingest_open_meteo: 'admin.job.ingest_open_meteo',
+  ingest_lightning: 'admin.job.ingest_lightning',
   push_check: 'admin.job.push_check',
   purge: 'admin.job.purge',
   climate_update: 'admin.job.climate_update',
+};
+
+const FB_CATEGORY: Record<FeedbackRow['category'], TKey> = {
+  suggestion: 'fb.cat.suggestion',
+  bug: 'fb.cat.bug',
+  data: 'fb.cat.data',
+  other: 'fb.cat.other',
+};
+
+const FB_STATUS: Record<FeedbackStatus, TKey> = {
+  new: 'admin.fb.new',
+  ack: 'admin.fb.ack',
+  resolved: 'admin.fb.resolved',
+  dismissed: 'admin.fb.dismissed',
+};
+
+const FB_STATUS_STYLE: Record<FeedbackStatus, string> = {
+  new: 'bg-[#FFE5E5] text-[#C0392B]',
+  ack: 'bg-[#E5F1FB] text-[#0071E3]',
+  resolved: 'bg-[#E8F8ED] text-[#1B7A3D]',
+  dismissed: 'bg-[#E9E9EB] text-[#6D6D72]',
 };
 
 const REASON_LABEL: Record<string, TKey> = {
@@ -56,6 +82,7 @@ const DB_TABLES: [string, TKey][] = [
   ['accepted_user_reports', 'admin.table.accepted_user_reports'],
   ['checkins', 'admin.table.checkins'],
   ['push_subscriptions', 'admin.table.push_subscriptions'],
+  ['feedback', 'admin.table.feedback'],
 ];
 
 function Stat({ value, label, tone }: { value: string | number; label: string; tone?: string }) {
@@ -80,6 +107,8 @@ export default function Admin() {
   const [filter, setFilter] = useState<'all' | 'accepted' | 'rejected'>('all');
   const [activity, setActivity] = useState<AdminActivity | null>(null);
   const [actDays, setActDays] = useState(30);
+  const [fb, setFb] = useState<FeedbackRow[] | null>(null);
+  const [fbFilter, setFbFilter] = useState<'all' | FeedbackStatus>('all');
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 10_000);
@@ -125,6 +154,33 @@ export default function Admin() {
   useEffect(() => {
     if (token) loadActivity();
   }, [token, loadActivity]);
+
+  // Feedback inbox: fetched like activity - on entry, on filter change, and
+  // via the manual refresh button (not on the 60s poll; keep it calm).
+  const loadFeedback = useCallback(async () => {
+    try {
+      setFb((await api.adminFeedback(token, fbFilter)).feedback);
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.status === 503)) {
+        handleFailure(e);
+      }
+      /* transient errors: keep the previous list */
+    }
+  }, [token, fbFilter, handleFailure]);
+
+  useEffect(() => {
+    if (token) loadFeedback();
+  }, [token, loadFeedback]);
+
+  const setFbStatus = async (row: FeedbackRow, status: FeedbackStatus) => {
+    setFb((prev) => prev?.map((r) => (r.id === row.id ? { ...r, status } : r)) ?? prev);
+    try {
+      await api.adminFeedbackUpdate(token, row.id, { status });
+      load();  // refresh the today/pending counts
+    } catch {
+      loadFeedback();  // revert to server truth on failure
+    }
+  };
 
   // Poll every 60s while a token is held.
   useEffect(() => {
@@ -252,7 +308,7 @@ export default function Admin() {
         </div>
         <div className="flex shrink-0 gap-2">
           <button
-            onClick={() => { load(); loadActivity(); }}
+            onClick={() => { load(); loadActivity(); loadFeedback(); }}
             className="rounded-full bg-[#E9E9EB] px-3 py-1.5 text-[12px] font-semibold text-[#3C3C43] active:bg-[#D8D8DC]"
           >
             {t('admin.refresh')}
@@ -410,6 +466,96 @@ export default function Admin() {
                         {r.status === 'accepted' ? t('admin.filter.accepted') : reasonLabel(r.status)}
                       </span>
                     </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* user feedback inbox */}
+          <section className="ios-card mx-4 mt-4 p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-[15px] font-bold tracking-tight">{t('admin.fbTitle')}</h2>
+              {data && (
+                <span className="shrink-0 text-[11px] tabular-nums text-slate-500">
+                  {t('admin.fb.pending')} {data.feedback.new_total}
+                </span>
+              )}
+            </div>
+            {data && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Stat value={data.feedback.today} label={t('admin.fb.today')} />
+                <Stat value={data.feedback.new_total} label={t('admin.fb.pending')}
+                      tone={data.feedback.new_total > 0 ? 'text-[#C0392B]' : undefined} />
+              </div>
+            )}
+            <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+              {(['all', 'new', 'ack', 'resolved', 'dismissed'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFbFilter(f)}
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    fbFilter === f
+                      ? 'bg-[#3C3C43] text-white'
+                      : 'bg-[#E9E9EB] text-[#6D6D72]'
+                  }`}
+                >
+                  {t(f === 'all' ? 'admin.filter.all' : FB_STATUS[f])}
+                </button>
+              ))}
+            </div>
+            {!fb || fb.length === 0 ? (
+              <p className="py-6 text-center text-[12px] text-slate-500">{t('admin.fb.empty')}</p>
+            ) : (
+              <ul className="divide-y divide-black/5">
+                {fb.map((r) => (
+                  <li key={r.id} className="py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 rounded-full bg-[#F2F2F7] px-2 py-0.5 text-[10px] font-medium text-[#3C3C43]">
+                        {t(FB_CATEGORY[r.category])}
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${FB_STATUS_STYLE[r.status]}`}>
+                        {t(FB_STATUS[r.status])}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-slate-400">
+                        {r.created_at.slice(5, 16).replace('T', ' ')}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#3C3C43]">
+                      {r.message}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                      <span className="tabular-nums">{r.device_id.slice(0, 8)}</span>
+                      {r.court_id && (
+                        <a href={`/courts/${r.court_id}`} className="text-[#007AFF] underline-offset-2 hover:underline">
+                          {courtName({
+                            name_sc: r.court_name_sc ?? '',
+                            name_tc: r.court_name_tc ?? '',
+                            name_en: r.court_name_en ?? '',
+                          }, lang)}
+                        </a>
+                      )}
+                      <span className="ml-auto flex gap-1.5">
+                        {r.status === 'new' && (
+                          <button onClick={() => setFbStatus(r, 'ack')}
+                                  className="rounded-full bg-[#E9E9EB] px-2 py-0.5 text-[10.5px] font-semibold text-[#3C3C43]">
+                            {t('admin.fb.ackBtn')}
+                          </button>
+                        )}
+                        {r.status !== 'resolved' && (
+                          <button onClick={() => setFbStatus(r, 'resolved')}
+                                  className="rounded-full bg-[#E8F8ED] px-2 py-0.5 text-[10.5px] font-semibold text-[#1B7A3D]">
+                            {t('admin.fb.resolveBtn')}
+                          </button>
+                        )}
+                        {r.status !== 'dismissed' && (
+                          <button onClick={() => setFbStatus(r, 'dismissed')}
+                                  className="rounded-full bg-[#E9E9EB] px-2 py-0.5 text-[10.5px] font-semibold text-[#6D6D72]">
+                            {t('admin.fb.dismissBtn')}
+                          </button>
+                        )}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>

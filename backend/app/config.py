@@ -66,6 +66,12 @@ class Settings:
     daily_report_limit: int = field(default_factory=lambda: _env_int("DAILY_REPORT_LIMIT", 10))
     max_speed_kmh: float = field(default_factory=lambda: _env_float("MAX_SPEED_KMH", 250))
 
+    # --- feedback anti-abuse (no GPS involved, so just rate limits) ---
+    feedback_cooldown_minutes: int = field(default_factory=lambda: _env_int(
+        "FEEDBACK_COOLDOWN_MINUTES", 10))
+    feedback_daily_limit: int = field(default_factory=lambda: _env_int(
+        "FEEDBACK_DAILY_LIMIT", 5))
+
     # --- web push (optional; push API disabled when not set) ---
     vapid_private_key: str = field(default_factory=lambda: os.environ.get("VAPID_PRIVATE_KEY", ""))
     vapid_public_key: str = field(default_factory=lambda: os.environ.get("VAPID_PUBLIC_KEY", ""))
@@ -79,6 +85,8 @@ class Settings:
     hko_hourly_rainfall_url: str = "https://data.weather.gov.hk/weatherAPI/opendata/hourlyRainfall.php?lang=en"
     hko_rhrread_url: str = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=en"
     hko_nowcast_csv_url: str = "https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv"
+    hko_lightning_url: str = ("https://data.weather.gov.hk/weatherAPI/opendata/"
+                              "opendata.php?dataType=LHL&lang=en&rformat=csv")
     open_meteo_url: str = "https://api.open-meteo.com/v1/forecast"
 
 
