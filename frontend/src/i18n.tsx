@@ -325,6 +325,8 @@ const S = {
   'home.heroSub': ['出门前看哪片场无雨，到了球场顺手报个天况。报的人越多，大家猜得越准。', '出門前看哪片場無雨，到了球場順手報個天況。報的人越多，大家猜得越準。', "Check which courts stay dry before you leave; drop a quick report when you're there. The more of us report, the better we all read the sky."],
   'home.ctaCourts': ['查看球场天气', '查看球場天氣', 'Browse courts'],
   'home.ctaReport': ['我现在就在球场', '我現在就在球場', "I'm at a court now"],
+  'home.locating': ['定位中…', '定位中…', 'Locating…'],
+  'home.geoFail': ['定位没成功，先去列表选球场吧', '定位沒成功，先去列表選球場吧', 'Location failed — pick your court from the list'],
   'home.statCourts': ['片公共网球场', '片公共網球場', 'public courts'],
   'home.statReports': ['条实况上报', '條實況上報', 'field reports'],
   'home.statMedian': ['未来一小时全港中位降雨概率', '未來一小時全港中位降雨概率', 'city median rain chance, next hour'],

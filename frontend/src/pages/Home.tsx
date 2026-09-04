@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Icon from '../components/Icon';
 import { courtName, useLang } from '../i18n';
 import type { TKey } from '../i18n';
-import type { LatestReport } from '../types';
+import type { CourtListItem, LatestReport } from '../types';
 
 const INTENSITY_ICON: Record<string, string> = {
   none: 'sun', light: 'drizzle', moderate: 'rain', heavy: 'storm',
@@ -28,12 +29,22 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const rad = Math.PI / 180;
+  const a = Math.sin(((lat2 - lat1) * rad) / 2) ** 2
+    + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lon2 - lon1) * rad) / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(a));
+}
+
 export default function Home() {
   const { t, lang } = useLang();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<{
     courts: string; reports: string; checkins: string; median: string;
   } | null>(null);
   const [pulse, setPulse] = useState<LatestReport[] | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locateHint, setLocateHint] = useState<string | null>(null);
 
   useEffect(() => {
     api.health()
@@ -57,6 +68,36 @@ export default function Home() {
       .then((r) => setPulse(r.reports))
       .catch(() => setPulse([]));
   }, []);
+
+  /** "I'm at a court now": locate → nearest court → its detail page, where the
+   *  report card sits right under the nowcast. Falls back to the list. */
+  const goToNearest = () => {
+    if (locating) return;
+    if (!navigator.geolocation) {
+      navigate('/courts');
+      return;
+    }
+    setLocating(true);
+    setLocateHint(null);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const { courts } = await api.courts('', '');
+        const nearest = (courts as CourtListItem[]).reduce((best, c) =>
+          haversineMeters(lat, lon, c.lat, c.lon)
+          < haversineMeters(lat, lon, best.lat, best.lon) ? c : best);
+        navigate(`/courts/${nearest.id}`);
+      } catch {
+        setLocating(false);
+        setLocateHint(t('home.geoFail'));
+      }
+    }, () => {
+      setLocating(false);
+      setLocateHint(t('home.geoFail'));
+      setTimeout(() => setLocateHint(null), 4000);
+      navigate('/courts');
+    }, { enableHighAccuracy: true, timeout: 12_000, maximumAge: 60_000 });
+  };
 
   const timeAgo = (iso: string): string => {
     const min = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -88,13 +129,17 @@ export default function Home() {
           >
             {t('home.ctaCourts')} →
           </a>
-          <a
-            href="/courts"
-            className="block rounded-full border border-white/80 bg-white/50 px-5 py-3.5 text-[15px] font-semibold text-[#177A3E] shadow-[0_6px_18px_-8px_rgba(17,17,20,0.18)] backdrop-blur-xl transition active:bg-white/75"
+          <button
+            onClick={goToNearest}
+            disabled={locating}
+            className="block w-full rounded-full border border-white/80 bg-white/50 px-5 py-3.5 text-[15px] font-semibold text-[#177A3E] shadow-[0_6px_18px_-8px_rgba(17,17,20,0.18)] backdrop-blur-xl transition active:bg-white/75 disabled:opacity-60"
           >
-            {t('home.ctaReport')}
-          </a>
+            {locating ? t('home.locating') : t('home.ctaReport')}
+          </button>
         </div>
+        {locateHint && (
+          <p className="mt-2 text-center text-[11px] text-[#8A6100]">{locateHint}</p>
+        )}
       </div>
 
       {/* live stats */}
