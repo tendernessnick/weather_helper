@@ -102,9 +102,9 @@ class SimpleScheduler:
         self._thread = threading.Thread(target=self._loop, name="scheduler", daemon=True)
         self._thread.start()
 
-    def shutdown(self) -> None:
+    def shutdown(self, wait: bool = True) -> None:
         self._stop.set()
-        if self._thread is not None:
+        if wait and self._thread is not None:
             self._thread.join(timeout=5)
 
     def status(self) -> dict[str, dict]:

@@ -1,12 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 明亮天空：晴雨同框 = 网球天气助手的「出门前看一眼」 -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4CD964"/>
-      <stop offset="1" stop-color="#2FAE4F"/>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B7DBFF"/>
+      <stop offset="1" stop-color="#EFF8FF"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="100" rx="23" fill="url(#bg)"/>
-  <circle cx="50" cy="50" r="26" fill="#FDFFF4"/>
-  <path d="M32.5 33.5c9 8.5 8 24.5-2.5 31.5" stroke="#2FAE4F" stroke-width="3.4" fill="none" stroke-linecap="round"/>
-  <path d="M67.5 33.5c-9 8.5-8 24.5 2.5 31.5" stroke="#2FAE4F" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- 太阳 -->
+  <g stroke="#FFC300" stroke-width="7" stroke-linecap="round">
+    <line x1="168" y1="96" x2="168" y2="110"/>
+    <line x1="168" y1="190" x2="168" y2="204"/>
+    <line x1="114" y1="150" x2="128" y2="150"/>
+    <line x1="208" y1="150" x2="222" y2="150"/>
+    <line x1="129.4" y1="111.4" x2="139.4" y2="121.4"/>
+    <line x1="196.6" y1="178.6" x2="206.6" y2="188.6"/>
+    <line x1="206.6" y1="111.4" x2="196.6" y2="121.4"/>
+    <line x1="139.4" y1="178.6" x2="129.4" y2="188.6"/>
+  </g>
+  <circle cx="168" cy="150" r="30" fill="#FFD60A"/>
+
+  <!-- 网球：缝线两侧各一条 C 弧，任何尺寸下都不会读成禁止符号 -->
+  <circle cx="256" cy="306" r="116" fill="#D8F655"/>
+  <g stroke="#166534" stroke-width="13" fill="none" stroke-linecap="round">
+    <path d="M161 239.5 C 216 266 216 346 161 372.5"/>
+    <path d="M351 239.5 C 296 266 296 346 351 372.5"/>
+  </g>
+
+  <!-- 雨云压住球右上角，三滴雨落下 -->
+  <g fill="#FFFFFF">
+    <circle cx="315" cy="168" r="30"/>
+    <circle cx="352" cy="150" r="40"/>
+    <circle cx="392" cy="172" r="26"/>
+    <rect x="300" y="168" width="104" height="30" rx="15"/>
+  </g>
+  <g fill="#0284C7">
+    <path transform="translate(312 224)" d="M0 -14 C 6 -5 11 2 11 8 A 11 11 0 1 1 -11 8 C -11 2 -6 -5 0 -14 Z"/>
+    <path transform="translate(352 238)" d="M0 -14 C 6 -5 11 2 11 8 A 11 11 0 1 1 -11 8 C -11 2 -6 -5 0 -14 Z"/>
+    <path transform="translate(390 218)" d="M0 -14 C 6 -5 11 2 11 8 A 11 11 0 1 1 -11 8 C -11 2 -6 -5 0 -14 Z"/>
+  </g>
 </svg>

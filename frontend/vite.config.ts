@@ -19,11 +19,13 @@ export default defineConfig({
         lang: 'zh-HK',
         display: 'standalone',
         start_url: '/',
-        background_color: '#0f172a',
+        background_color: '#d9ecff',
         theme_color: '#16a34a',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // 设计源文件是 public/icon.svg；改图标后跑 `npm run icons` 重新出图。
+          // 构图已收在 maskable 安全区内，一份资源同时服务启动屏与桌面圆形裁切。
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
