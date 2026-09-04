@@ -218,7 +218,7 @@ export default function CourtList() {
                   <li key={court.id}>
                     <a
                       href={`/courts/${court.id}`}
-                      className="flex items-center gap-1 rounded-[14px] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.05)] active:bg-[#E5E5EA]"
+                      className="flex items-center gap-1 rounded-[14px] border border-white/80 bg-white/70 p-3.5 shadow-[0_1px_1px_rgba(17,17,20,0.03),0_6px_16px_-10px_rgba(17,17,20,0.14)] active:bg-[#E5E5EA]/80"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">

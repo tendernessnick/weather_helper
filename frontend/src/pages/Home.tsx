@@ -21,7 +21,7 @@ const STEPS: { icon: string; tile: string; title: TKey; body: TKey }[] = [
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[10px] bg-[#F2F2F7] p-3">
+    <div className="rounded-[14px] bg-[#161616]/[0.045] p-3 ring-1 ring-white/40">
       <div className="text-[22px] font-bold tabular-nums tracking-tight">{value}</div>
       <div className="mt-0.5 text-[10px] leading-snug text-slate-500">{label}</div>
     </div>
@@ -68,26 +68,29 @@ export default function Home() {
   return (
     <div className="pb-4">
       {/* hero */}
-      <div className="bg-gradient-to-b from-[#DFF4E5] via-[#EDFAF0] to-[#F2F2F7] px-6 pb-5 pt-10 text-center">
-        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-[18px] bg-[#34C759] text-white shadow-[0_6px_16px_rgba(52,199,89,0.35)]">
-          <Icon name="ball" className="h-10 w-10" strokeWidth={1.6} />
+      <div className="px-6 pb-2 pt-12 text-center">
+        <span className="relative mx-auto flex h-20 w-20 items-center justify-center">
+          <span aria-hidden className="absolute -inset-7 rounded-full bg-[#34C759]/30 blur-2xl" />
+          <span className="relative flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-b from-[#3DD968] to-[#1FA84C] text-white shadow-[0_14px_30px_-8px_rgba(52,199,89,0.6)] ring-1 ring-white/40">
+            <Icon name="ball" className="h-12 w-12" strokeWidth={1.6} />
+          </span>
         </span>
-        <h1 className="mt-4 text-[26px] font-bold leading-tight tracking-tight">
+        <h1 className="mt-5 text-[28px] font-bold leading-tight tracking-tight">
           {t('home.heroTitle')}
         </h1>
-        <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-[#6D6D72]">
+        <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-[#5B5B60]">
           {t('home.heroSub')}
         </p>
-        <div className="mx-auto mt-5 max-w-[340px] space-y-2.5">
+        <div className="mx-auto mt-6 max-w-[340px] space-y-3">
           <a
             href="/courts"
-            className="block rounded-full bg-[#34C759] px-5 py-3 text-[15px] font-semibold text-white active:bg-[#1B7A3D]"
+            className="block rounded-full bg-gradient-to-b from-[#3DD968] to-[#26B455] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(52,199,89,0.65)] ring-1 ring-white/30 transition active:from-[#1FA84C] active:to-[#178F41]"
           >
             {t('home.ctaCourts')} →
           </a>
           <a
             href="/courts"
-            className="block rounded-full border border-[#34C759]/60 bg-white px-5 py-3 text-[15px] font-semibold text-[#1B7A3D] active:bg-[#E8F8ED]"
+            className="block rounded-full border border-white/80 bg-white/50 px-5 py-3.5 text-[15px] font-semibold text-[#177A3E] shadow-[0_6px_18px_-8px_rgba(17,17,20,0.18)] backdrop-blur-xl transition active:bg-white/75"
           >
             {t('home.ctaReport')}
           </a>
@@ -166,12 +169,12 @@ export default function Home() {
       </section>
 
       {/* call to participate */}
-      <section className="mx-4 mt-4 rounded-[16px] bg-[#E8F8ED] p-4">
-        <h2 className="text-[15px] font-bold tracking-tight text-[#1B7A3D]">{t('home.callTitle')}</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-[#1B7A3D]/85">{t('home.callBody')}</p>
+      <section className="mx-4 mt-4 overflow-hidden rounded-[20px] border border-[#34C759]/25 bg-gradient-to-br from-[#34C759]/15 to-[#8EC5FF]/15 p-4 shadow-[0_12px_32px_-14px_rgba(52,199,89,0.35)] backdrop-blur-xl">
+        <h2 className="text-[15px] font-bold tracking-tight text-[#14602F]">{t('home.callTitle')}</h2>
+        <p className="mt-1 text-[12px] leading-relaxed text-[#14602F]/85">{t('home.callBody')}</p>
         <a
           href="/courts"
-          className="mt-3 block rounded-full bg-[#34C759] px-5 py-2.5 text-center text-[14px] font-semibold text-white active:bg-[#1B7A3D]"
+          className="mt-3 block rounded-full bg-gradient-to-b from-[#3DD968] to-[#26B455] px-5 py-2.5 text-center text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(52,199,89,0.65)] ring-1 ring-white/30 active:from-[#1FA84C] active:to-[#178F41]"
         >
           {t('home.callCta')} →
         </a>

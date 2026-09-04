@@ -39,7 +39,7 @@ function reliabilityVerdict(
 
 function BigStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-[10px] bg-[#F2F2F7] p-3">
+    <div className="rounded-[14px] bg-[#161616]/[0.045] p-3 ring-1 ring-white/40">
       <div className="text-[10px] text-slate-500">{label}</div>
       <div className="mt-0.5 text-2xl font-bold text-slate-800">{value}</div>
       {note && <div className="mt-0.5 text-[10px] leading-snug text-slate-400">{note}</div>}

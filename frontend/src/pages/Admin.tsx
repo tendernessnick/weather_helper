@@ -60,7 +60,7 @@ const DB_TABLES: [string, TKey][] = [
 
 function Stat({ value, label, tone }: { value: string | number; label: string; tone?: string }) {
   return (
-    <div className="rounded-[10px] bg-[#F2F2F7] p-3">
+    <div className="rounded-[14px] bg-[#161616]/[0.045] p-3 ring-1 ring-white/40">
       <div className={`text-[22px] font-bold tabular-nums tracking-tight ${tone ?? ''}`}>{value}</div>
       <div className="mt-0.5 truncate text-[10px] text-slate-500">{label}</div>
     </div>

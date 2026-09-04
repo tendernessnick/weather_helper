@@ -55,8 +55,16 @@ function LangButton() {
 export default function App() {
   const t = useT();
   return (
-    <div className="mx-auto min-h-screen max-w-3xl bg-[#F2F2F7]">
-      <header className="sticky top-0 z-20 border-b border-white/60 bg-white/55 shadow-[0_1px_14px_rgba(17,17,20,0.04)] backdrop-blur-xl backdrop-saturate-150">
+    <div className="relative isolate mx-auto min-h-screen max-w-3xl overflow-hidden">
+      {/* atmosphere: dawn-sky gradient + soft color blobs (Apple-weather style) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#D7E8FF] via-[#ECF0FE] to-[#F7F1EA]" />
+        <div className="absolute -left-24 -top-20 h-80 w-80 rounded-full bg-[#8EC5FF]/45 blur-3xl" />
+        <div className="absolute -right-28 top-1/4 h-96 w-96 rounded-full bg-[#C9BAFF]/40 blur-3xl" />
+        <div className="absolute -left-20 bottom-0 h-80 w-80 rounded-full bg-[#FFD9A8]/45 blur-3xl" />
+      </div>
+
+      <header className="sticky top-0 z-20 bg-white/30 backdrop-blur-2xl backdrop-saturate-150">
         <div className="flex items-center justify-between px-4 py-2.5">
           <a href="/" className="flex min-w-0 items-center gap-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#34C759] text-white">
