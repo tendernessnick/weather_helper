@@ -89,7 +89,7 @@ export default function ReportSheet({ court }: { court: Court }) {
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <h2 className="text-[15px] font-bold tracking-tight">{t('report.title')}</h2>
-      <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">
+      <p className="mt-0.5 text-[12px] leading-relaxed text-emerald-700">
         {t('report.note')}
         {cooldown > 0 && (
           <span className="ml-1 font-medium">

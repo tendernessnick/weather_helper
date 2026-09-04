@@ -29,7 +29,7 @@ export default function RecentReports({ courtId }: { courtId: string }) {
   if (reports === null) return null;
   if (reports.length === 0) {
     return (
-      <p className="mt-2 text-[11px] leading-relaxed text-[#8E8E93]">
+      <p className="mt-2 text-[12px] leading-relaxed text-[#8E8E93]">
         <Icon name="people" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
         {t('recent.empty')}
       </p>
@@ -43,7 +43,7 @@ export default function RecentReports({ courtId }: { courtId: string }) {
 
   return (
     <div className="mt-2.5 border-t border-black/5 pt-2.5">
-      <p className="text-[11px] font-semibold text-[#3C3C43]">
+      <p className="text-[12.5px] font-semibold text-[#3C3C43]">
         <Icon name="people" className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-[#8E8E93]" />
         {t('recent.title')}
       </p>

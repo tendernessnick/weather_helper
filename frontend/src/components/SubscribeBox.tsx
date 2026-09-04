@@ -104,7 +104,7 @@ export default function SubscribeBox({ court }: { court: Court }) {
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <h2 className="text-[15px] font-bold tracking-tight">{t('sub.title')}</h2>
-      <p className="mt-1 text-[10px] text-slate-400">
+      <p className="mt-1 text-[12px] text-slate-500">
         {t('sub.note')}
       </p>
       <div className="mt-2 flex items-center gap-2">

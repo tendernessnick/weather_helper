@@ -15,7 +15,7 @@ export default function NowcastStrip({
     <section className="ios-card mx-4 mt-4 p-4">
       <div className="flex items-baseline justify-between">
         <h2 className="text-[15px] font-bold tracking-tight">{t('now.title')}</h2>
-        <span className="text-[10px] text-[#8E8E93]">
+        <span className="text-[12px] text-[#8E8E93]">
           {fetchedAt ? t('now.updated', { t: fmtTime(fetchedAt) }) : ''}
         </span>
       </div>
@@ -40,7 +40,7 @@ export default function NowcastStrip({
           })}
         </ol>
       )}
-      <p className="mt-2 text-[10px] leading-relaxed text-[#8E8E93]">
+      <p className="mt-2 text-[12px] leading-relaxed text-[#8E8E93]">
         {t('now.footnote')}
       </p>
     </section>

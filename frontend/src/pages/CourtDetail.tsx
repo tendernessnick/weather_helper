@@ -223,13 +223,13 @@ export default function CourtDetail() {
             <p className="mt-1.5 rounded-[10px] bg-[#F2F2F7] p-2.5 text-[12px] font-medium leading-relaxed text-[#3C3C43]">
               💡 {interpretation}
             </p>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-[#8E8E93]">
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[#8E8E93]">
               {t('detail.calibBasis', {
                 basis: calibration.basis === 'court' ? t('detail.basisCourt') : t('detail.basisPooled'),
                 n: calibration.n,
               })}
             </p>
-            <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
+            <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[11.5px]">
               {calibration.mapping.map((m) => (
                 <div key={m.official_pct} className="rounded-[8px] bg-[#F2F2F7] py-1.5">
                   <div className="text-[#8E8E93]">{t('detail.saidPct', { p: m.official_pct })}</div>

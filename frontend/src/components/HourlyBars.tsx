@@ -97,7 +97,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
     <section className="mx-4 mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-bold">{t('hourly.title')}</h2>
-        <span className="text-[10px] text-slate-400">{t('hourly.source')}</span>
+        <span className="text-[11px] text-slate-400">{t('hourly.source')}</span>
       </div>
       {items.length === 0 ? (
         <p className="mt-3 text-xs text-slate-400">{t('hourly.empty')}</p>
@@ -125,7 +125,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
                       item.zone ? t('hourly.tipZone', { z: t(ZONE_KEY[item.zone]) }) : null,
                     ].filter(Boolean).join('\n')}
                   >
-                    <span className="text-[9px] text-slate-500">{item.pop}%</span>
+                    <span className="text-[10.5px] text-slate-500">{item.pop}%</span>
                     <div className="relative w-full" style={{ height: 62 }}>
                       <div
                         className={`absolute bottom-0 left-0 right-0 rounded-t ${popColor(item.pop)} ${isNow ? 'ring-2 ring-emerald-500' : ''}`}
@@ -138,7 +138,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
                         />
                       )}
                     </div>
-                    <span className={`text-[9px] ${isNow ? 'font-bold text-emerald-600' : 'text-slate-400'}`}>
+                    <span className={`text-[10.5px] ${isNow ? 'font-bold text-emerald-600' : 'text-slate-400'}`}>
                       {label}
                     </span>
                   </button>
@@ -152,23 +152,23 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
             <div className="mt-2 rounded-xl bg-slate-50 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">{selLabel}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${ZONE_CHIP[sel.zone ?? 'go']}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ZONE_CHIP[sel.zone ?? 'go']}`}>
                   {t('hourly.suggest', { z: t(ZONE_KEY[sel.zone ?? 'go']) })}
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">{t('hourly.official')}</div>
+                  <div className="text-[11px] text-slate-400">{t('hourly.official')}</div>
                   <div className="text-base font-bold text-sky-700">{sel.pop}%</div>
                 </div>
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">{t('hourly.corrected')}</div>
+                  <div className="text-[11px] text-slate-400">{t('hourly.corrected')}</div>
                   <div className="text-base font-bold text-slate-700">
                     {(sel.corrected_pop ?? sel.pop)}%
                   </div>
                 </div>
                 <div className="rounded-lg bg-white p-1.5">
-                  <div className="text-[9px] text-slate-400">{t('hourly.clim')}</div>
+                  <div className="text-[11px] text-slate-400">{t('hourly.clim')}</div>
                   <div className="text-base font-bold text-slate-500">
                     {sel.climatology_pop ?? '—'}%
                   </div>
@@ -185,7 +185,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
                   <span className="text-slate-600">{comfortNote(t, sel.comfort.level, sel.apparent_temp, sel.wind_kmh)}</span>
                 </p>
               )}
-              <p className="mt-1 text-[9px] text-slate-400">
+              <p className="mt-1 text-[11px] text-slate-400">
                 {t('hourly.footer', { mm: sel.mm.toFixed(1), w: sel.wind_kmh.toFixed(0) })}
                 {sel.apparent_temp != null && t('hourly.atemp', { t: sel.apparent_temp.toFixed(0) })}
                 {sel.humidity != null && t('hourly.hum', { h: sel.humidity.toFixed(0) })}
@@ -194,14 +194,14 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
             </div>
           )}
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-500" />{t('hourly.official')}</span>
             <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-700" />{t('hourly.corrected')}</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-50 ring-1 ring-emerald-200" />{t('hourly.legendGo')}</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-50 ring-1 ring-amber-200" />{t('hourly.legendEdge')}</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-50 ring-1 ring-rose-200" />{t('hourly.legendNo')}</span>
           </div>
-          <p className="mt-1 text-[10px] text-slate-400">
+          <p className="mt-1 text-[12px] text-slate-500">
             {t('hourly.tip')}
           </p>
         </>

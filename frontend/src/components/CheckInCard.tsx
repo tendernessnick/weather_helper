@@ -38,7 +38,7 @@ export default function CheckInCard({ court }: { court: Court }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[15px] font-bold tracking-tight">{t('check.title')}</h2>
-          <p className="mt-0.5 text-[10px] text-[#8E8E93]">
+          <p className="mt-0.5 text-[12px] text-[#8E8E93]">
             {t('check.note')}
           </p>
         </div>

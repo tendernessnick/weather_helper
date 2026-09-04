@@ -14,7 +14,7 @@ export const LANG_META: { id: Lang; label: string; htmlLang: string }[] = [
 const S = {
   // --- app shell ---
   'app.title': ['网球天气助手', '網球天氣助手', 'Tennis Weather HK'],
-  'app.subtitle': ['香港政府球场 · 降雨实况验证', '香港政府網球場 · 降雨實況驗證', 'HK public courts · rainfall, verified'],
+  'app.subtitle': ['香港公共网球场 · 降雨实况验证', '香港公共網球場 · 降雨實況驗證', 'HK public courts · rainfall, verified'],
   'tab.courts': ['球场', '球場', 'Courts'],
   'tab.best': ['去哪打', '去哪打', 'Best'],
   'tab.insights': ['洞察', '洞察', 'Insights'],
@@ -38,7 +38,7 @@ const S = {
 
   // --- court list ---
   'list.search': ['搜索球场或地区', '搜尋球場或地區', 'Search courts or districts'],
-  'list.count': ['共 {n} 个康文署网球场 · 点柱子看三数与细节', '共 {n} 個康文署網球場 · 點柱看三數與細節', '{n} LCSD tennis courts · tap a court for hourly detail'],
+  'list.count': ['共 {n} 个公共网球场 · 点开看降雨与可信度', '共 {n} 個公共網球場 · 點開看降雨與可信度', '{n} public tennis courts · tap for rain & reliability'],
   'list.noMatch': ['没有匹配的球场', '沒有匹配的球場', 'No matching courts'],
   'list.starsTitle': ['预报准确率 {p}%', '預報準確率 {p}%', 'Forecast accuracy {p}%'],
   'list.nowcastLoading': ['临近预报加载中', '臨近預報載入中', 'Nowcast loading…'],
@@ -322,7 +322,7 @@ const S = {
 
   // --- home (landing page) ---
   'home.heroTitle': ['香港网球人的天气助手', '香港網球人的天氣助手', "Hong Kong tennis players' weather companion"],
-  'home.heroSub': ['出门前看哪片场无雨，到了球场顺手报个天况。报的人越多，大家猜得越准。', '出門前看哪片場無雨，到了球場順手報個天況。報的人越多，大家猜得越準。', "Check which courts stay dry before you leave; drop a quick report when you're there. The more of us report, the better we all read the sky."],
+  'home.heroSub': ['出门前看哪片场无雨，到了球场顺手报个天况。', '出門前看哪片場無雨，到了球場順手報個天況。', "Check which courts stay dry before you go; report what you see when you're there."],
   'home.ctaCourts': ['查看球场天气', '查看球場天氣', 'Browse courts'],
   'home.ctaReport': ['我现在就在球场', '我現在就在球場', "I'm at a court now"],
   'home.locating': ['定位中…', '定位中…', 'Locating…'],

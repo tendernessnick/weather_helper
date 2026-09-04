@@ -9,7 +9,7 @@ function VerifyLine({ label, m }: { label: string; m: Metrics }) {
   const { t } = useLang();
   return (
     <div className="flex items-center justify-between gap-2 py-1.5">
-      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
         {label}
       </span>
       <div className="flex items-baseline gap-2 overflow-hidden">
@@ -21,7 +21,7 @@ function VerifyLine({ label, m }: { label: string; m: Metrics }) {
         }`}>
           {m.sufficient_samples ? pct(m.accuracy) : '—'}
         </span>
-        <span className="whitespace-nowrap text-[10px] text-slate-500">
+        <span className="whitespace-nowrap text-[11px] text-slate-500">
           n={m.n}
           {m.sufficient_samples && m.pod !== null && (
             <> · {t('score.miss', { p: pct(m.pod) })} · {t('score.far', { p: pct(m.far) })}</>
@@ -40,7 +40,7 @@ function SourceCard({
   return (
     <div className="rounded-lg bg-slate-50 px-3 py-2">
       <div className="text-xs font-semibold text-slate-700">{title}</div>
-      <div className="text-[10px] text-slate-400">{note}</div>
+      <div className="text-[11px] text-slate-400">{note}</div>
       <VerifyLine label={t('score.gauge')} m={station} />
       <VerifyLine label={t('score.players')} m={user} />
     </div>
@@ -52,7 +52,7 @@ export default function ScoreCard({ scores }: { scores: CourtScores }) {
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <h2 className="text-[15px] font-bold tracking-tight">{t('score.title', { n: scores.window_days })}</h2>
-      <p className="mt-1 text-[10px] leading-relaxed text-[#8E8E93]">
+      <p className="mt-1 text-[12px] leading-relaxed text-[#8E8E93]">
         {t('score.explain', { m: scores.min_samples })}
       </p>
       <div className="mt-2 space-y-2">

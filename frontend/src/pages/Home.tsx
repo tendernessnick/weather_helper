@@ -119,13 +119,13 @@ export default function Home() {
         <h1 className="mt-5 text-[28px] font-bold leading-tight tracking-tight">
           {t('home.heroTitle')}
         </h1>
-        <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-[#5B5B60]">
+        <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-[#5B5B60] [text-wrap:balance]">
           {t('home.heroSub')}
         </p>
         {/* participation pitch, moved up next to the CTAs it is meant to drive */}
         <div className="mx-auto mt-4 max-w-[340px] rounded-[16px] border border-white/70 bg-white/45 px-4 py-3 text-left backdrop-blur-xl">
           <p className="text-[12.5px] font-bold text-[#177A3E]">{t('home.callTitle')}</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{t('home.callBody')}</p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate-500 [text-wrap:pretty]">{t('home.callBody')}</p>
         </div>
         <div className="mx-auto mt-4 max-w-[340px] space-y-3">
           <a
