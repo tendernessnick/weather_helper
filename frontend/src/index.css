@@ -13,11 +13,16 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* iOS grouped-list card surface */
+/* iOS grouped-list card surface: frosted glass with hairline border */
 .ios-card {
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 0.5px solid rgba(17, 17, 20, 0.06);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow:
+    0 1px 2px rgba(17, 17, 20, 0.04),
+    0 8px 24px -12px rgba(17, 17, 20, 0.1);
 }
 
 /* iOS grouped-list section header */

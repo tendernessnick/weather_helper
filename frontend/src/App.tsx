@@ -56,7 +56,7 @@ export default function App() {
   const t = useT();
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-[#F2F2F7]">
-      <header className="sticky top-0 z-20 border-b border-black/5 bg-[#F9F9F9]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-20 border-b border-white/60 bg-white/55 shadow-[0_1px_14px_rgba(17,17,20,0.04)] backdrop-blur-xl backdrop-saturate-150">
         <div className="flex items-center justify-between px-4 py-2.5">
           <a href="/" className="flex min-w-0 items-center gap-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#34C759] text-white">
