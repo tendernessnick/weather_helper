@@ -124,6 +124,16 @@ export interface RecentReport {
   was_raining: boolean;
 }
 
+export interface LatestReport {
+  court_id: string;
+  court_name_sc: string;
+  court_name_tc: string;
+  court_name_en: string;
+  intensity: 'none' | 'light' | 'moderate' | 'heavy';
+  was_raining: boolean;
+  created_at: string;
+}
+
 export interface CourtRankSimple {
   court_id: string;
   name_sc: string;

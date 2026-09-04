@@ -88,26 +88,22 @@ export default function ReportSheet({ court }: { court: Court }) {
 
   return (
     <section className="ios-card mx-4 mt-4 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-[15px] font-bold tracking-tight">{t('report.title')}</h2>
-          <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">
-            {t('report.note')}
-            {cooldown > 0 && (
-              <span className="ml-1 font-medium">
-                {t('report.cooldownLeft', { t: countdown(cooldown) })}
-              </span>
-            )}
-          </p>
-        </div>
-        <button
-          onClick={() => setOpen((v) => !v)}
-          disabled={cooldown > 0}
-          className="shrink-0 rounded-full bg-[#34C759] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
-        >
-          {cooldown > 0 ? t('report.cooling') : t('report.cta')}
-        </button>
-      </div>
+      <h2 className="text-[15px] font-bold tracking-tight">{t('report.title')}</h2>
+      <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">
+        {t('report.note')}
+        {cooldown > 0 && (
+          <span className="ml-1 font-medium">
+            {t('report.cooldownLeft', { t: countdown(cooldown) })}
+          </span>
+        )}
+      </p>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={cooldown > 0}
+        className="mt-3 w-full rounded-full bg-[#34C759] px-4 py-3 text-[15px] font-semibold text-white shadow-[0_2px_8px_rgba(52,199,89,0.35)] active:bg-[#1B7A3D] disabled:bg-black/20 disabled:shadow-none"
+      >
+        {cooldown > 0 ? t('report.cooling') : t('report.cta')}
+      </button>
 
       {open && (
         <div className="mt-3 grid grid-cols-4 gap-2">

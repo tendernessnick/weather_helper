@@ -47,14 +47,14 @@ self.addEventListener('push', (event: PushEvent) => {
       body: variant.body ?? payload.body ?? '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: payload.url ?? '/' },
+      data: { url: payload.url ?? '/courts' },
     }),
   );
 });
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string })?.url ?? '/';
+  const url = (event.notification.data as { url?: string })?.url ?? '/courts';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {

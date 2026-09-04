@@ -2,8 +2,8 @@ import { getDeviceId } from './device';
 import type {
   AdminActivity, AdminOverview, BestResponse, CalibrationInfo, CheckinReport,
   CourtListItem, CourtRankRow, CourtScores, DisagreementStats, DryRanking,
-  HourProfileRow, LeadBucket, QualityTrend, RecentReport, Reminder,
-  ReportStatus, StatsOverview, WeatherResponse,
+  HourProfileRow, LatestReport, LeadBucket, QualityTrend, RecentReport,
+  Reminder, ReportStatus, StatsOverview, WeatherResponse,
 } from './types';
 
 const DEVICE_ID = getDeviceId();
@@ -120,6 +120,12 @@ export const api = {
 
   recentReports: (id: string) =>
     request<{ reports: RecentReport[] }>(`/api/courts/${id}/reports/recent`),
+
+  latestReports: (limit: number = 5) =>
+    request<{ reports: LatestReport[] }>(`/api/reports/latest?limit=${limit}`),
+
+  health: () =>
+    request<{ status: string; db: Record<string, string | number | null> }>('/api/health'),
 
   best: (hour?: string) =>
     request<BestResponse>(`/api/best${hour ? `?hour=${encodeURIComponent(hour)}` : ''}`),

@@ -1,5 +1,6 @@
 """Community rain report endpoint with anti-abuse enforcement."""
 import uuid
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -69,6 +70,30 @@ def submit_report(
 
     return ReportOut(status="accepted",
                      cooldown_remaining_sec=cooldown_remaining(db, court.id, device_id))
+
+
+@router.get("/reports/latest")
+def latest_reports(limit: int = Query(default=5, ge=1, le=20),
+                   db: Session = Depends(get_db)):
+    """Community pulse for the landing page: latest accepted reports across all
+    courts (last 6 hours). No device ids, no coordinates - same exposure level
+    as the per-court recent endpoint."""
+    since = hk_now() - timedelta(hours=6)
+    rows = (db.query(UserReport, Court)
+            .join(Court, UserReport.court_id == Court.id)
+            .filter(UserReport.status == "accepted",
+                    UserReport.created_at >= since)
+            .order_by(UserReport.created_at.desc(), UserReport.id.desc())
+            .limit(limit).all())
+    return {"reports": [{
+        "court_id": r.court_id,
+        "court_name_sc": c.name_sc,
+        "court_name_tc": c.name_tc,
+        "court_name_en": c.name_en,
+        "intensity": r.intensity,
+        "was_raining": r.was_raining,
+        "created_at": r.created_at.isoformat(timespec="seconds"),
+    } for r, c in rows]}
 
 
 @router.get("/reports/status")

@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import Home from './pages/Home';
 import CourtList from './pages/CourtList';
 import CourtDetail from './pages/CourtDetail';
 import Best from './pages/Best';
@@ -12,7 +13,7 @@ import type { Lang } from './i18n';
 function SegmentedTabs() {
   const { t } = useLang();
   const tabs = [
-    { to: '/', label: t('tab.courts') },
+    { to: '/courts', label: t('tab.courts') },
     { to: '/best', label: t('tab.best') },
     { to: '/insights', label: t('tab.insights') },
   ];
@@ -22,7 +23,7 @@ function SegmentedTabs() {
         <NavLink
           key={to}
           to={to}
-          end={to === '/'}
+          end={to === '/courts'}
           className={({ isActive }) =>
             `whitespace-nowrap rounded-[8px] px-3 py-1 transition-colors ${
               isActive ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6D6D72]'
@@ -77,7 +78,8 @@ export default function App() {
 
       <main className="pb-16">
         <Routes>
-          <Route path="/" element={<CourtList />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/courts" element={<CourtList />} />
           <Route path="/courts/:id" element={<CourtDetail />} />
           <Route path="/best" element={<Best />} />
           <Route path="/insights" element={<Insights />} />

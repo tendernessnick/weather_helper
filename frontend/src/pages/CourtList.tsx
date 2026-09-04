@@ -187,7 +187,20 @@ export default function CourtList() {
       {error && (
         <div className="mx-4 mt-4 rounded-[12px] bg-[#FFE5E5] p-3 text-sm text-[#C0392B]">{error}</div>
       )}
-      {loading && <div className="p-8 text-center text-sm text-[#8E8E93]">{t('common.loading')}</div>}
+      {loading && (
+        <div className="space-y-2 px-4 pt-2" aria-label="loading">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="flex animate-pulse items-center gap-3 rounded-[12px] bg-white p-3"
+                 style={{ animationDelay: `${i * 90}ms` }}>
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-2/5 rounded bg-[#E9E9EB]" />
+                <div className="h-2.5 w-3/5 rounded bg-[#EFEFF2]" />
+              </div>
+              <div className="h-6 w-14 rounded-full bg-[#E9E9EB]" />
+            </div>
+          ))}
+        </div>
+      )}
       {!loading && !error && courts.length === 0 && (
         <div className="p-8 text-center text-sm text-[#8E8E93]">{t('list.noMatch')}</div>
       )}

@@ -118,7 +118,7 @@ export default function CourtDetail() {
   if (notFound) {
     return (
       <div className="p-8 text-center text-sm text-slate-500">
-        {t('detail.notFound')}<a href="/" className="text-[#007AFF] underline">{t('detail.backList')}</a>
+        {t('detail.notFound')}<a href="/courts" className="text-[#007AFF] underline">{t('detail.backList')}</a>
       </div>
     );
   }
@@ -202,6 +202,10 @@ export default function CourtDetail() {
       )}
 
       <NowcastStrip steps={weather.nowcast.steps} fetchedAt={weather.nowcast.fetched_at} />
+      {/* Reporting is the "I'm here right now" action: keep it right after the
+          nowcast, before the long analytical charts, so participation is
+          visible without scrolling. */}
+      <ReportSheet court={court} />
       <HourlyBars hourly={weather.hourly} />
       {calibration && calibration.basis && (() => {
         const deltas = calibration.mapping
@@ -241,7 +245,6 @@ export default function CourtDetail() {
       {weather.persistence && <PersistenceCard data={weather.persistence} />}
       {scores && <ScoreCard scores={scores} />}
       <CheckInCard court={court} />
-      <ReportSheet court={court} />
       <SubscribeBox court={court} />
     </div>
   );

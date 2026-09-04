@@ -145,6 +145,7 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `GET /api/courts/{id}/weather` 组合天气（临近预报 + 48h 概率 + 当前天气 + 警告）
 - `POST /api/reports`（Header `X-Device-ID: <uuid>`）到场实况上报
 - `GET /api/reports/status?court_id=` 上报冷却/配额状态
+- `GET /api/reports/latest?limit=5` 全站最近已采纳上报（首页"社区脉搏"，不含设备号）
 - `GET /api/push/public-key` · `POST /api/subscriptions` · `DELETE /api/subscriptions?endpoint=`
 - `GET /api/stats/quality-trend?days=90` 预报准确率逐日走势（含 7 天滚动平滑）
 - `GET /api/stats/dry-ranking?month=0` 球场十年雨频率排行（month=0 全年，否则 1-12 月）
