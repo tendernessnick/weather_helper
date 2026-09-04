@@ -142,13 +142,13 @@ export default function CourtList() {
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <ul className="flex flex-col items-center rounded-full bg-white/95 py-1 shadow-md ring-1 ring-black/5 text-[11px] font-medium text-[#0071E3]">
+            <ul className="flex flex-col items-center gap-[1px] rounded-full border border-white/70 bg-white/45 py-1.5 text-[9.5px] font-semibold text-[#6D6D72] shadow-[0_4px_16px_-8px_rgba(17,17,20,0.22)] backdrop-blur-xl">
               {activeLetters.map((letter) => (
                 <li key={letter}>
                   <button
                     data-letter={letter}
                     onClick={() => jump(letter)}
-                    className="flex h-5 w-6 items-center justify-center rounded-full active:bg-[#0071E3]/15"
+                    className="flex h-[15px] w-5 items-center justify-center rounded-full active:bg-[#0071E3]/15 active:text-[#0071E3]"
                   >
                     {letter}
                   </button>
@@ -159,7 +159,7 @@ export default function CourtList() {
 
           {seekLetter && (
             <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900/80 text-3xl font-bold text-white">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[22px] border border-white/25 bg-[#1A1A1E]/70 text-4xl font-bold text-white shadow-[0_16px_40px_-12px_rgba(17,17,20,0.5)] backdrop-blur-xl">
                 {seekLetter}
               </div>
             </div>
@@ -176,7 +176,7 @@ export default function CourtList() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('list.search')}
-            className="w-full rounded-[10px] border-0 bg-[#E9E9EB] py-2 pl-9 pr-3 text-[15px] outline-none placeholder:text-[#8E8E93] focus:ring-2 focus:ring-[#0071E3]/40"
+            className="w-full rounded-full border border-white/70 bg-white/55 py-2 pl-9 pr-3 text-[15px] shadow-[0_2px_10px_-6px_rgba(17,17,20,0.15)] backdrop-blur-md outline-none placeholder:text-[#8E8E93] focus:border-[#0071E3]/40 focus:ring-2 focus:ring-[#0071E3]/25"
           />
         </div>
         <p className="mt-2 text-[12px] text-[#6D6D72]">
@@ -190,7 +190,7 @@ export default function CourtList() {
       {loading && (
         <div className="space-y-2 px-4 pt-2" aria-label="loading">
           {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} className="flex animate-pulse items-center gap-3 rounded-[12px] bg-white p-3"
+            <div key={i} className="flex animate-pulse items-center gap-3 rounded-[14px] border border-white/70 bg-white/70 p-3"
                  style={{ animationDelay: `${i * 90}ms` }}>
               <div className="flex-1 space-y-1.5">
                 <div className="h-3.5 w-2/5 rounded bg-[#E9E9EB]" />
@@ -210,8 +210,10 @@ export default function CourtList() {
         <ul>
           {activeLetters.map((letter) => (
             <li key={letter} id={`letter-${letter}`} className="scroll-mt-16">
-              <div className="sticky top-[56px] z-10 -ml-4 bg-[#F2F2F7]/95 pl-4 pr-2 py-0.5 text-[13px] font-semibold text-[#6D6D72] backdrop-blur-sm">
-                {letter}
+              <div className="sticky top-[60px] z-10 -ml-1 py-0.5">
+                <span className="inline-block rounded-full border border-white/70 bg-white/55 px-2.5 py-[3px] text-[11px] font-bold tracking-[0.08em] text-[#6D6D72] shadow-[0_2px_8px_-4px_rgba(17,17,20,0.18)] backdrop-blur-md">
+                  {letter}
+                </span>
               </div>
               <ul className="space-y-2 pb-1">
                 {(grouped.get(letter) ?? []).map((court) => (
