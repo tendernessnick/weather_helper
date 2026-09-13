@@ -43,8 +43,9 @@
 | 生效警告 + 雷电警报 | 天文台当前警告；过去 1 小时本区域有对地闪电时红色警示（雷暴期间请勿在露天场逗留） |
 | 结论横幅 | 未来 6 小时一句话结论：放心 / 边缘 / 别赌（按融合值取最差时段） |
 | 酷热提醒 | 未来 6 小时体感最差时段 ≥32°C 时提示补水避暑 |
+| 微气候旗标 | 本场球友上报与最近测站经常「你说晴我说雨」时点亮：请更信临近预报与球友上报 |
 | 未来 2 小时降雨 | SWIRLS 雷达外推，半小时一档，0-2 小时内最可信 |
-| 上报实况 | 我就在这个球场：四档雨情点一下（需定位在球场 500 米内，2 小时冷却） |
+| 上报实况 | 我就在这个球场：四档雨情点一下（需定位在球场 500 米内，2 小时冷却），下方滚动展示最近 3 小时球友上报 |
 | 逐小时图 | 未来 48 小时。可切「降雨概率 / 体感温度 / 风速」；概率模式下蓝条=官方预报、黑点=校正后、琥珀点=融合值（仅前 6 小时）；点柱子看三个数与人话判读；预报雷暴的时段有 ⚡ 角标 |
 | 校正对照卡 | 这个球场的预报数字历来虚高还是保守：左列预报说的，右列实际发生的 |
 | 持续性卡 | 现在没下雨能顶几小时？现在下了 1 小时内会停吗？（本区当月十年实测） |
@@ -283,9 +284,13 @@ cd backend && uv run pytest -q
 | `REPORT_COOLDOWN_HOURS` | `2` | 同设备同球场冷却 |
 | `DAILY_REPORT_LIMIT` | `10` | 每设备每日上报上限 |
 | `MAX_SPEED_KMH` | `250` | 位移速度上限（防瞬移刷量） |
+| `MAX_GPS_ACCURACY_METERS` | `300` | 上报 GPS 精度上限（精度差于该值拒收） |
 | `POP_RAIN_THRESHOLD` | `50` | 概率≥此值记为"预报有雨"；推送触发线 |
+| `RAIN_MM_THRESHOLD` | `0.1` | 测站实测过去 1 小时 ≥ 此毫米数记为「下雨」（验证真值） |
+| `NOWCAST_MM_THRESHOLD` | `0.05` | 临近预报 30 分钟步 ≥ 此毫米数记为「报雨」 |
 | `WINDOW_DAYS` / `MIN_SAMPLES` | `30` / `20` | 评分窗口与最小样本 |
 | `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | 空 | Web Push 密钥（生成：`npx web-push generate-vapid-keys`） |
+| `VAPID_SUBJECT` | `mailto:admin@example.com` | Web Push 发件人标识（mailto: 邮箱） |
 | `ADMIN_TOKEN` | 空 | 后台管理看板（`/admin`）的访问令牌，不设置则后台 API 返回 503 |
 | `FEEDBACK_COOLDOWN_MINUTES` | 10 | 意见反馈的同设备冷却分钟数 |
 | `FEEDBACK_DAILY_LIMIT` | 5 | 意见反馈的每设备每日上限 |
@@ -341,12 +346,27 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `GET /api/courts?search=&prefix=A` 球场列表（含未来 2h 降雨徽章、可信度摘要）
 - `GET /api/courts/{id}` 球场详情 + 评分
 - `GET /api/courts/{id}/weather` 组合天气（临近预报 + 48h 概率 + 融合值 0-6h + 雷电 + 当前天气 + 警告）
+- `GET /api/courts/{id}/scores?window_days=` 可信度评分明细（两预报源 × 两真值，窗口 1-365 天可选）
+- `GET /api/courts/{id}/reports/recent` 本球场最近 3 小时已采纳球友上报
+- `GET /api/courts/{id}/calibration` 校正对照卡数据（含微气候旗标判定）
 - `POST /api/reports`（Header `X-Device-ID: <uuid>`）到场实况上报
 - `GET /api/reports/status?court_id=` 上报冷却/配额状态
 - `GET /api/reports/latest?limit=5` 全站最近已采纳上报（首页"社区脉搏"，不含设备号）
+- `POST /api/checkins`（Header `X-Device-ID: <uuid>`）打完球打卡（同场 6 小时冷却）
+- `GET /api/checkins/my`（Header `X-Device-ID: <uuid>`）我的打卡历史
+- `GET /api/checkins/report`（Header `X-Device-ID: <uuid>`）个人战报（打卡自动回顾当日天气）
+- `GET /api/checkins/peek?code=` 恢复码校验（换设备后找回打卡数据）
+- `GET /api/best?hour=YYYY-MM-DDTHH` 去哪打：该时段全场最干球场排行 + 未来 24 小时全港风险曲线（缺省下一整点）
+- `GET /api/map/rain` 雨团地图（SWIRLS 网格数据，前端自绘渲染）
 - `POST /api/feedback`（Header `X-Device-ID: <uuid>`）用户意见反馈（10 分钟冷却 / 每日 5 条）
 - `GET /api/feedback/status` 反馈冷却/配额状态
 - `GET /api/push/public-key` · `POST /api/subscriptions` · `DELETE /api/subscriptions?endpoint=`
+- `POST /api/subscriptions/polling`（Header `X-Device-ID: <uuid>`）轮询订阅（Web Push 不可用时的回退）
+- `GET /api/reminders/check`（Header `X-Device-ID: <uuid>`）取读到期的轮询提醒（前端每 60 秒查一次）
+- `GET /api/stats/overview` 洞察总览（Open-Meteo 的 Brier/BSS/三分解/可靠性曲线 + 突发雨捕获率）
+- `GET /api/stats/lead-decay` 提前量衰减（l3/l12/l24/l48 各档独立成绩）
+- `GET /api/stats/hourly-profile` 每小时漏报画像（24 柱 + Wilson 区间）
+- `GET /api/stats/courts` 球场排名（收缩估计 + 置信区间 + 微气候旗标）
 - `GET /api/stats/quality-trend?days=90` 预报准确率逐日走势（含 7 天滚动平滑）
 - `GET /api/stats/dry-ranking?month=0` 球场十年雨频率排行（month=0 全年，否则 1-12 月）
 - `GET /api/stats/disagreement` 两预报源分歧时的历史胜负统计
@@ -354,6 +374,7 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `GET /api/admin/feedback?status=`（Header `X-Admin-Token`）反馈收件箱
 - `PATCH /api/admin/feedback/{id}`（Header `X-Admin-Token`）流转反馈状态（new/ack/resolved/dismissed）
 - `GET /api/admin/activity?days=30`（Header `X-Admin-Token`）活跃趋势（DAU / 上报时刻分布 / 漏斗）
+- `GET /api/health` 健康探针（数据库文件创建时间 / 大小 / 各表行数——部署后核对数据卷有没有丢）
 
 ## 二期方向
 
