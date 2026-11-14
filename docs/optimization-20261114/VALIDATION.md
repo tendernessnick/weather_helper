@@ -31,7 +31,7 @@
 
 ## 自动化与运行边界
 
-新增 `.github/workflows/ci.yml`：每次master推送/PR执行后端、前端与Chromium浏览器回归，上传截图/测试结果。最终远端运行结果在GitHub Actions查看。
+新增 `.github/workflows/ci.yml`：每次master推送/PR执行后端、前端与Chromium浏览器回归，上传截图/测试结果。最终远端运行结果在GitHub Actions查看。首次Linux回归发现两处筛选断言在React更新前立即读数量；已改用Playwright条件等待，保持相同预期，避免依赖电脑执行速度。
 
 CloudBase单实例常驻和SQLite持久卷仍按README配置。本轮未执行CloudBase部署或存储改动，GitHub推送不能证明线上已更新。当前机器Docker引擎未运行，未执行镜像构建；前后端生产构建与本地浏览器验证已完成。现有SQLite无需新增schema迁移。
 

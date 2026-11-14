@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(new URL('../package.json', import.meta.url));
+const { expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.WEATHER_BASE_URL || 'http://127.0.0.1:8145';
@@ -143,10 +144,10 @@ try {
       await page.goto(`${base}/courts`);
       await page.getByRole('button', { name: 'Save court', exact: true }).first().click();
       await page.getByRole('button', { name: /^★?\s*Saved/ }).click();
-      assert.equal(await page.locator('main a[href^="/courts/"]').count(), 1);
+      await expect(page.locator('main a[href^="/courts/"]')).toHaveCount(1);
       await page.reload();
       await page.getByRole('button', { name: 'Remove from favourites', exact: true }).waitFor();
-      assert.equal(await page.locator('main a[href^="/courts/"]').count(), 1);
+      await expect(page.locator('main a[href^="/courts/"]')).toHaveCount(1);
     } finally { await context.close(); }
   });
 
@@ -247,11 +248,11 @@ try {
       const requestCount = state.courtReads;
       await page.getByRole('searchbox').fill('park');
       await page.getByRole('combobox',{name:'Filter district'}).selectOption('Wan Chai');
-      assert.equal(await page.locator('main a[href^="/courts/"]').count(),1);
+      await expect(page.locator('main a[href^="/courts/"]')).toHaveCount(1);
       await page.getByRole('searchbox').fill('no such court');
       await page.getByText('No matching courts', {exact:true}).waitFor();
       await page.getByRole('button',{name:'Clear filters',exact:true}).click();
-      assert.equal(await page.locator('main a[href^="/courts/"]').count(),3);
+      await expect(page.locator('main a[href^="/courts/"]')).toHaveCount(3);
       assert.equal(state.courtReads,requestCount);
     } finally { await context.close(); }
   });
