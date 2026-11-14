@@ -84,6 +84,27 @@ JOBS = [
     ("climate_update", climate.update_recent_months, 24 * 3600),
 ]
 
+# Per-job single-flight locks: the startup ingest (main.py) and the
+# scheduler's staggered first ticks can otherwise run the same job
+# concurrently and race on shared writes (kv_cache upserts, hourly
+# observation inserts) — whichever session commits second dies on the
+# unique constraint. One lock per job id; whoever holds it runs, the
+# other skips this slot entirely.
+_job_locks = {job_id: threading.Lock() for job_id, _fn, _interval in JOBS}
+_JOB_FNS = {job_id: fn for job_id, fn, _interval in JOBS}
+
+
+def run_job_exclusive(job_id: str) -> None:
+    """Run one job's callable unless the same job is already in flight."""
+    lock = _job_locks[job_id]
+    if not lock.acquire(blocking=False):
+        logger.info("job %s skipped: another run is in flight", job_id)
+        return
+    try:
+        _JOB_FNS[job_id]()
+    finally:
+        lock.release()
+
 
 class SimpleScheduler:
     def __init__(self) -> None:
@@ -95,6 +116,9 @@ class SimpleScheduler:
         self._status: dict[str, dict] = {}
 
     def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
         now = time.monotonic()
         # First run of every job shortly after boot, staggered to spread load.
         for i, (job_id, _fn, _interval) in enumerate(JOBS):
@@ -134,29 +158,39 @@ class SimpleScheduler:
         now = time.monotonic()
         for job_id, fn, interval in JOBS:
             if now >= self._next[job_id]:
-                started = hk_now()
-                # Record the start before running: a long job (e.g. the climate
-                # top-up takes minutes) must show as in-flight, not "never ran".
-                entry = self._status.setdefault(
-                    job_id, {"runs": 0, "failures": 0, "last_start": None,
-                             "last_ok": None, "last_duration_ms": None,
-                             "last_error": None})
-                entry["last_start"] = started.isoformat(timespec="seconds")
-                t0 = time.monotonic()
-                error: str | None = None
+                lock = _job_locks[job_id]
+                if not lock.acquire(blocking=False):
+                    # The startup ingest (or an overlapping earlier tick) is
+                    # already running this job; its data covers this slot.
+                    logger.info("job %s skipped: another run is in flight", job_id)
+                    self._next[job_id] = time.monotonic() + interval
+                    continue
                 try:
-                    fn()
-                except Exception as exc:  # noqa: BLE001
-                    logger.exception("job %s failed", job_id)
-                    error = f"{type(exc).__name__}: {exc}"[:300]
-                entry["runs"] += 1
-                entry["last_duration_ms"] = round((time.monotonic() - t0) * 1000)
-                if error is None:
-                    entry["last_ok"] = started.isoformat(timespec="seconds")
-                    entry["last_error"] = None
-                else:
-                    entry["failures"] += 1
-                    entry["last_error"] = error
+                    started = hk_now()
+                    # Record the start before running: a long job (e.g. the climate
+                    # top-up takes minutes) must show as in-flight, not "never ran".
+                    entry = self._status.setdefault(
+                        job_id, {"runs": 0, "failures": 0, "last_start": None,
+                                 "last_ok": None, "last_duration_ms": None,
+                                 "last_error": None})
+                    entry["last_start"] = started.isoformat(timespec="seconds")
+                    t0 = time.monotonic()
+                    error: str | None = None
+                    try:
+                        fn()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.exception("job %s failed", job_id)
+                        error = f"{type(exc).__name__}: {exc}"[:300]
+                    entry["runs"] += 1
+                    entry["last_duration_ms"] = round((time.monotonic() - t0) * 1000)
+                    if error is None:
+                        entry["last_ok"] = started.isoformat(timespec="seconds")
+                        entry["last_error"] = None
+                    else:
+                        entry["failures"] += 1
+                        entry["last_error"] = error
+                finally:
+                    lock.release()
                 self._next[job_id] = time.monotonic() + interval
 
 

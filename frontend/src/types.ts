@@ -44,6 +44,8 @@ export interface ComfortInfo {
 
 export interface HourlyItem {
   hour: string;
+  fetched_at?: string | null;
+  stale?: boolean;
   pop: number;
   corrected_pop?: number;
   climatology_pop?: number | null;
@@ -91,6 +93,12 @@ export interface LightningInfo {
 
 export interface WeatherResponse {
   court_id: string;
+  data_status?: {
+    timezone: string;
+    generated_at: string;
+    nowcast: DataFreshness;
+    hourly: DataFreshness;
+  };
   nowcast: { fetched_at: string | null; steps: NowcastStep[] };
   hourly: HourlyItem[];
   calibration?: { basis_n: number };
@@ -167,6 +175,18 @@ export interface BestResponse {
   city_median_pop: number | null;
   courts: CourtRankSimple[];
   hours: { hour: string; city_median_pop: number }[];
+  data_status?: DataFreshness;
+  available_courts?: number;
+  total_courts?: number;
+  timezone?: string;
+  generated_at?: string;
+}
+
+export interface DataFreshness {
+  status: 'fresh' | 'stale' | 'missing';
+  fetched_at: string | null;
+  age_minutes: number | null;
+  max_age_minutes: number;
 }
 
 export interface CheckinSession {
@@ -196,7 +216,8 @@ export interface Reminder {
   court_name_tc?: string;
   court_name_en?: string;
   play_hhmm: string;
-  risky: boolean;
+  risky: boolean | null;
+  risk_status?: 'unknown' | 'dry' | 'rain';
   pop: number | null;
 }
 

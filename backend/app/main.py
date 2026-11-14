@@ -3,8 +3,9 @@ import logging
 import os
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,23 +15,26 @@ from .api import (admin, best, checkins, courts, feedback, map as map_api,
 from .config import settings
 from .db import SessionLocal, init_db
 from .diagnostics import db_state
-from .scheduler import (_job_ingest_current, _job_ingest_nowcast,
-                        _job_ingest_open_meteo, _job_ingest_rainfall, scheduler)
+from .scheduler import run_job_exclusive, scheduler
 from .services.lcsd import ensure_courts
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+# Same set as before, by job id: routed through the scheduler's per-job locks
+# so these can't race the staggered first ticks on shared table writes.
+_FIRST_BOOT_JOBS = ("ingest_current", "ingest_rainfall", "ingest_nowcast",
+                    "ingest_open_meteo")
+
 
 def _first_boot_ingest() -> None:
     """Kick off all sources once at startup so a fresh deploy has data immediately."""
-    for job in (_job_ingest_current, _job_ingest_rainfall, _job_ingest_nowcast,
-                _job_ingest_open_meteo):
+    for job_id in _FIRST_BOOT_JOBS:
         try:
-            job()
+            run_job_exclusive(job_id)
         except Exception:
-            logger.exception("startup ingest %s failed", job.__name__)
+            logger.exception("startup ingest %s failed", job_id)
 
 
 @asynccontextmanager
@@ -75,12 +79,27 @@ def health():
 # Serve the built frontend when present (single-service deployment).
 _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                      "frontend", "dist")
+
+
+def _frontend_path(root: str, full_path: str) -> Path:
+    """Resolve SPA assets inside dist, including encoded/backslash traversal.
+
+    Only existing files within the build are candidates. Unknown API routes
+    must remain 404, rather than becoming successful HTML responses.
+    """
+    base = Path(root).resolve()
+    candidate = (base / full_path).resolve()
+    if not candidate.is_relative_to(base) or full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="not found")
+    return candidate
+
+
 if os.path.isdir(_dist):
     app.mount("/assets", StaticFiles(directory=os.path.join(_dist, "assets")), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
-        candidate = os.path.join(_dist, full_path)
-        if full_path and os.path.isfile(candidate):
+        candidate = _frontend_path(_dist, full_path)
+        if full_path and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(os.path.join(_dist, "index.html"))

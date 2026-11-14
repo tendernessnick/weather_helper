@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..config import floor_hour, hk_now, settings
 from ..models import Court, ForecastSnapshot, NowcastSnapshot, PushSubscription
+from .freshness import FORECAST_FRESH_SEC, NOWCAST_FRESH_SEC, is_fresh
 
 logger = logging.getLogger(__name__)
 
@@ -40,27 +41,61 @@ def _send(subscription: PushSubscription, payload: dict) -> bool:
         return True  # transient error; keep the subscription
 
 
-def rain_risk(db: Session, court_id: str, play_hour) -> tuple[bool, int | None]:
-    """(risky, pop%) for the play hour: OM snapshot PoP or any F3 rain step."""
+def rain_risk(db: Session, court_id: str, play_hour) -> tuple[bool | None, int | None]:
+    """(risky, pop%) from fresh evidence; None means unable to judge.
+
+    Missing or stale forecasts must not be delivered as a reassuring dry
+    reminder. A fresh wet radar step can still warn when OM is unavailable.
+    """
+    now = hk_now()
     snap = db.execute(
-        select(ForecastSnapshot.precip_prob)
+        select(ForecastSnapshot)
         .where(ForecastSnapshot.court_id == court_id,
                ForecastSnapshot.target_hour == play_hour)
-    ).scalar()
-    if snap is not None and snap >= settings.pop_rain_threshold:
-        return True, snap
+    ).scalar_one_or_none()
+    pop = (snap.precip_prob if snap is not None
+           and is_fresh(snap.fetched_at, now, FORECAST_FRESH_SEC) else None)
+    if pop is not None and pop >= settings.pop_rain_threshold:
+        return True, pop
 
     latest = (db.query(NowcastSnapshot)
               .filter(NowcastSnapshot.court_id == court_id)
               .order_by(NowcastSnapshot.fetched_at.desc())
               .first())
-    if latest is not None:
+    if latest is not None and is_fresh(latest.fetched_at, now, NOWCAST_FRESH_SEC):
         steps = json.loads(latest.steps_json)
         for step in steps:
-            if floor_hour(datetime.fromisoformat(step["ending"])) == play_hour \
+            ending = datetime.fromisoformat(step["ending"])
+            # Accumulation ending exactly at T closes the preceding hour.
+            bucket = floor_hour(ending - timedelta(seconds=1))
+            if ending > now and bucket == play_hour \
                     and step["mm"] >= settings.nowcast_mm_threshold:
-                return True, snap
-    return False, snap
+                return True, pop
+    return (False, pop) if pop is not None else (None, None)
+
+
+def _reminder_payload(court: Court, sub: PushSubscription,
+                      risky: bool | None, pop: int | None) -> dict:
+    time = sub.play_at.strftime('%H:%M')
+    if risky is None:
+        titles = ["球场天气待确认", "球場天氣待確認", "Court weather unavailable"]
+        bodies = [
+            f"{court.name_sc}：香港时间 {time} 的预报缺失或已过期，暂时无法判断，请出门前刷新确认",
+            f"{court.name_tc}：香港時間 {time} 的預報缺失或已過期，暫時無法判斷，請出門前重新整理確認",
+            f"{court.name_en}: forecast missing or out of date for {time} HKT. Refresh before leaving; rain risk is unknown.",
+        ]
+    else:
+        titles = ["球场下雨风险提醒", "球場下雨風險提醒", "Court rain-risk reminder"]
+        evidence = ([f"官方降水概率约 {pop}%", f"官方降水概率約 {pop}%", f"official rain chance ~{pop}%"]
+                    if pop is not None else ["雷达临近预报有雨", "雷達臨近預報有雨", "radar nowcast indicates rain"])
+        bodies = [
+            f"{court.name_sc}：香港时间 {time} 前后{evidence[0]}，出门前再看一眼临近预报",
+            f"{court.name_tc}：香港時間 {time} 前後{evidence[1]}，出門前再看一眼臨近預報",
+            f"{court.name_en}: {evidence[2]} around {time} HKT. Check the nowcast before leaving.",
+        ]
+    variants = {lang: {"title": title, "body": body}
+                for lang, title, body in zip(("hans", "hant", "en"), titles, bodies)}
+    return {**variants["hans"], "url": f"/courts/{court.id}", "variants": variants}
 
 
 def check_and_notify(db: Session) -> int:
@@ -93,35 +128,14 @@ def check_and_notify(db: Session) -> int:
 
         play_hour = floor_hour(sub.play_at)
         risky, pop = rain_risk(db, sub.court_id, play_hour)
-        if not risky:
+        if risky is False:
             if now >= notify_until:
                 # reminder window fully passed without rain risk; don't retry
                 sub.notified_at = now
                 db.commit()
             continue
 
-        payload = {
-            "title": "球场下雨风险提醒",
-            "body": (f"{court.name_sc}：{sub.play_at.strftime('%H:%M')} 前后降水概率约 "
-                     f"{pop}%，出门前再看一眼临近预报"),
-            "url": f"/courts/{court.id}",
-            # The service worker picks the variant matching the device language;
-            # title/body above stay as the legacy fallback.
-            "variants": {
-                "hans": {
-                    "title": "球场下雨风险提醒",
-                    "body": f"{court.name_sc}：{sub.play_at.strftime('%H:%M')} 前后降水概率约 {pop}%，出门前再看一眼临近预报",
-                },
-                "hant": {
-                    "title": "球場下雨風險提醒",
-                    "body": f"{court.name_tc}：{sub.play_at.strftime('%H:%M')} 前後降水概率約 {pop}%，出門前再看一眼臨近預報",
-                },
-                "en": {
-                    "title": "Court rain-risk reminder",
-                    "body": f"{court.name_en}: ~{pop}% rain chance around {sub.play_at.strftime('%H:%M')} — check the nowcast before leaving",
-                },
-            },
-        }
+        payload = _reminder_payload(court, sub, risky, pop)
         if _send(sub, payload):
             sent += 1
         sub.notified_at = now

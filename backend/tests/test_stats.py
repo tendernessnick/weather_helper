@@ -60,6 +60,17 @@ def test_bss_bad_forecast_is_negative():
     assert brier_skill_score(pairs) < 0
 
 
+def test_bss_uses_only_common_forecast_and_baseline_hours():
+    # The first hour exactly equals its climate baseline. The second has
+    # no climate baseline and must not change their relative skill.
+    pairs = [(0.2, False, 0.2), (0.9, False, None)]
+    assert abs(brier_skill_score(pairs)) < 1e-9
+
+
+def test_bss_requires_at_least_one_comparable_baseline():
+    assert brier_skill_score([(0.2, False, None)]) is None
+
+
 def test_decomposition_identity():
     rows = [(85, True), (75, False), (60, True), (55, False), (45, True),
             (30, False), (25, False), (15, True), (10, False), (5, False),
@@ -115,6 +126,14 @@ def test_recalibrate_drops_thin_bins():
     assert 0.2 <= f(0.75) <= 0.4
 
 
+def test_recalibrate_identity_when_all_mixed_outcome_bins_are_thin():
+    # Rain exists, but neither bin has enough samples to form a knot.
+    # This is common during a new deployment's initial data accumulation.
+    f = recalibrate(P((20, False), (80, True)))
+    for probability in (0.0, 0.2, 0.5, 1.0):
+        assert f(probability) == probability
+
+
 # --- skill scores ------------------------------------------------------------
 
 def test_heidke_peirce_perfect():
@@ -123,10 +142,18 @@ def test_heidke_peirce_perfect():
 
 
 def test_heidke_peirce_no_skill_constant_dry():
-    # always-dry forecast with rare rain: HSS zero; Peirce undefined when the
-    # forecast never says "yes" (no hit or false-alarm denominator)
+    # Always-dry forecasts have zero hit and false-positive rates when both
+    # outcomes occur, so both skill scores are zero.
     assert abs(heidke(0, 2, 0, 98)) < 1e-9
-    assert peirce(0, 2, 0, 98) is None
+    assert peirce(0, 2, 0, 98) == 0
+
+
+def test_peirce_is_undefined_without_observed_dry_hours():
+    assert peirce(3, 1, 0, 0) is None
+
+
+def test_peirce_is_undefined_without_observed_wet_hours():
+    assert peirce(0, 0, 1, 3) is None
 
 
 def test_peirce_worse_than_chance_negative():

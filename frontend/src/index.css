@@ -42,3 +42,12 @@ body {
 .sheet-up {
   animation: sheet-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+
+:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+#main-content { scroll-margin-top: 112px; }
+.skip-link { position: absolute; left: 1rem; top: -10rem; z-index: 100; border-radius: 8px; padding: 12px; background: white; color: #1e40af; }
+.skip-link:focus { top: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

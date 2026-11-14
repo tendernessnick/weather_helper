@@ -19,28 +19,39 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(path, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Device-ID': DEVICE_ID,
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!resp.ok) {
-    let detail: unknown = null;
-    try {
-      detail = await resp.json();
-    } catch {
-      /* non-JSON error body */
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(init?.signal?.reason);
+  if (init?.signal?.aborted) onAbort();
+  else init?.signal?.addEventListener('abort', onAbort, { once: true });
+  const timer = window.setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), 20_000);
+  try {
+    const resp = await fetch(path, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-ID': DEVICE_ID,
+        ...(init?.headers ?? {}),
+      },
+    });
+    if (!resp.ok) {
+      let detail: unknown = null;
+      try {
+        detail = await resp.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      const message =
+        typeof detail === 'object' && detail !== null && 'detail' in detail
+          ? detailMessage((detail as Record<string, unknown>).detail)
+          : `request failed (${resp.status})`;
+      throw new ApiError(resp.status, message, detail);
     }
-    const message =
-      typeof detail === 'object' && detail !== null && 'detail' in detail
-        ? detailMessage((detail as Record<string, unknown>).detail)
-        : `request failed (${resp.status})`;
-    throw new ApiError(resp.status, message, detail);
+    return await resp.json() as T;
+  } finally {
+    clearTimeout(timer);
+    init?.signal?.removeEventListener('abort', onAbort);
   }
-  return resp.json() as Promise<T>;
 }
 
 function detailMessage(detail: unknown): string {
@@ -52,9 +63,9 @@ function detailMessage(detail: unknown): string {
 }
 
 export const api = {
-  courts: (search: string, prefix: string) =>
+  courts: (search: string, prefix: string, signal?: AbortSignal) =>
     request<{ total: number; courts: CourtListItem[] }>(
-      `/api/courts?search=${encodeURIComponent(search)}&prefix=${prefix}`),
+      `/api/courts?search=${encodeURIComponent(search)}&prefix=${encodeURIComponent(prefix)}`, { signal }),
 
   courtScores: (id: string) => request<CourtScores>(`/api/courts/${id}/scores`),
 
@@ -124,11 +135,13 @@ export const api = {
   latestReports: (limit: number = 5) =>
     request<{ reports: LatestReport[] }>(`/api/reports/latest?limit=${limit}`),
 
+  rainMap: <T>() => request<T>('/api/map/rain'),
+
   health: () =>
     request<{ status: string; db: Record<string, string | number | null> }>('/api/health'),
 
-  best: (hour?: string) =>
-    request<BestResponse>(`/api/best${hour ? `?hour=${encodeURIComponent(hour)}` : ''}`),
+  best: (hour?: string, signal?: AbortSignal) =>
+    request<BestResponse>(`/api/best${hour ? `?hour=${encodeURIComponent(hour)}` : ''}`, { signal }),
 
   checkin: (courtId: string, durationHours: number) =>
     request<{ status: string }>('/api/checkins', {

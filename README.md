@@ -1,16 +1,27 @@
 # 网球天气助手（香港）
 
-香港的天气预报对"未来一两小时到底下不下雨"经常不准，而网球只有室外场。
+出门打室外网球，最想知道的是：未来一两小时，这个球场到底会不会下雨。
 这个项目在官方预报之上做**二次评价**：按球场展示逐小时降雨预报，用户到场后可上报实况，
 系统用「天文台测站实测 + 球友众包上报」双轨自动验证每个预报源在该球场的准确率，
 帮你判断"这个球场的预报今天信不信"。
+
+### 2026-11-14 体验与可靠性优化
+
+- **按这一场看风险**：球场详情选择开打时间和 1/2/3 小时时长，逐小时核对覆盖，展示时段内最高风险。显示与提醒输入均按香港时间，跨时区设备一致。
+- **收藏与筛选**：球场支持本机收藏、地区筛选、中英搜索；筛选写入 URL，回到列表或刷新仍可恢复。
+- **旧数据不当作无雨**：SWIRLS 按官方发布时间判断新鲜度（25 分钟），逐小时预报期限为 180 分钟；缺失、过期、覆盖不全或离线时，场次面板显示无法判断。雨图缺数据的球场为灰色。
+- **弱网恢复**：请求超时、失败重试、排行榜切换时取消旧请求、页面恢复后刷新；按页拆分 JavaScript，适配窄屏导航和减少动态效果的系统偏好。
+- **统计修复**：修正偶数样本中位数、Peirce 单类别除零、薄桶校准异常，以及 BSS 模型与基准的样本配对。
+
+优化方案、测试及回退方式见 [本轮验收记录](docs/optimization-20261114/VALIDATION.md)。融合值是启发式风险指数（0–100），尚未独立验证为降雨概率；场次面板的峰值不是整场下雨概率。
+
 
 ## 功能一览
 
 - **球场列表**：全港 57 个公共网球场，A-Z 字母索引 + 中英文搜索
 - **未来 2 小时降雨**：天文台 SWIRLS 网格点临近预报（每 12 分钟更新、半小时一档、精确到球场坐标）
 - **逐小时降水概率**：Open-Meteo 集合预报（未来 48 小时，任意球场坐标）
-- **融合概率（0-6h）**：雷达覆盖内「SWIRLS 70% + 校正预报 30%」、覆盖外「校正预报 70% + 十年同期气候 30%」加权，填补临近预报结束到中期预报之间的空档
+- **融合风险指数（0-6h）**：雷达覆盖内「SWIRLS 70% + 校正预报 30%」、覆盖外「校正预报 70% + 十年同期气候 30%」加权，填补临近预报结束到中期预报之间的空档
 - **雷电警报**：天文台对地闪电数据（按四区域），球场所属区域有对地闪电时红色横幅警示
 - **预报可信度评分**：对每个球场分别给「天文台临近预报」和「Open-Meteo」打分（准确率 / 漏报率 / 误报率 / Brier，滚动 30 天）
 - **到场实况上报**：地理围栏 + 冷却 + 每日上限 + 位移校验，防刷数据
@@ -41,7 +52,7 @@
 | 区块 | 回答的问题 |
 |---|---|
 | 生效警告 + 雷电警报 | 天文台当前警告；过去 1 小时本区域有对地闪电时红色警示（雷暴期间请勿在露天场逗留） |
-| 结论横幅 | 未来 6 小时一句话结论：放心 / 边缘 / 别赌（按融合值取最差时段） |
+| 场次面板 | 选择开打时间与 1/2/3 小时，检查完整覆盖与新鲜度，按最差小时显示风险；缺数据或警告时提示确认 |
 | 酷热提醒 | 未来 6 小时体感最差时段 ≥32°C 时提示补水避暑 |
 | 微气候旗标 | 本场球友上报与最近测站经常「你说晴我说雨」时点亮：请更信临近预报与球友上报 |
 | 未来 2 小时降雨 | SWIRLS 雷达外推，半小时一档，0-2 小时内最可信 |
@@ -105,21 +116,21 @@ SWIRLS 取该小时开始前最后一份快照，其中落在本小时的 30 分
 单个球场专属映射要求样本 ≥40 且湿事件 ≥30（雨太稀，没够雨样本学不出东西），
 不够时自动回落到全港口径并在卡片上注明。
 
-### 3. 融合值（0-6h 琥珀色点 / 结论横幅）
+### 3. 融合风险指数（0-6h 琥珀色点 / 场次面板）
 
 **回答**：雷达只能看 2 小时、中期概率前几个小时偏弱，中间空档听谁的？
 
 **实现**（`services/fusion.py`）：对未来 6 个整点，把 SWIRLS 的 30 分钟步归入所在小时，
-该小时湿润步占比即雷达概率 p_sw。雷达新鲜（≤25 分钟）且覆盖该小时：
+该小时湿润步占比为雷达信号 p_sw（时间覆盖比例，不是经校准的降雨概率）。雷达新鲜（≤25 分钟）且覆盖该小时：
 `融合值 = 0.7×p_sw + 0.3×校正概率`；超出雷达覆盖：`融合值 = 0.7×校正概率 + 0.3×十年同期气候频率`。
 纯读取时计算，不新增存储。
 
-### 4. 决策分区（放心 / 边缘 / 别赌）
+### 4. 决策分区（低风险 / 需留意 / 高风险）
 
 **回答**：今晚到底去不去？
 
-校正概率 ≤0.30 → 放心（go）、≤0.60 → 边缘（edge）、>0.60 → 别赌（no）。
-逐小时柱的底色、点选卡的"建议"、首页/详情页的 6 小时结论横幅都由它驱动（`analytics.decision_zone`）。
+校正概率或融合指数在对应量纲下 ≤30 → 低风险（go）、≤60 → 需留意（edge）、>60 → 高风险（no）。
+场次面板按选定时长内最高小时风险分区；缺数据/过期/离线优先显示无法判断，生效警告优先提示查看警告。这个分区不是安全保证（`analytics.decision_zone`）。
 
 ### 5. 持续性卡（等雨停 / 能顶多久）
 
@@ -305,29 +316,53 @@ docker build -t weather-helper .
 docker run -p 8000:8000 -v wh_data:/data weather-helper
 ```
 
-### 部署到 Railway
+### 部署到腾讯云 CloudBase（当前使用）
 
-1. 推送代码到 GitHub（仓库根目录含 `Dockerfile` 与 `railway.toml`，Railway 会自动识别）
-2. [railway.com](https://railway.com) 用 GitHub 登录 → **New Project → Deploy from GitHub repo** → 选本仓库
-3. 构建完成后，进入服务 → **Variables** 添加：
+2026-10 起从 Railway 迁到 CloudBase 云托管（CloudRun 容器型）。选容器型而不是云函数，
+是因为应用依赖**进程内常驻调度器**（8 个定时抓取/推送任务）和 Web Push 长驻服务，
+缩容到 0 即停摆，只有常驻实例能承载。
+
+线上地址：`https://weather-helper-312215-10-1477032709.sh.run.tcloudbase.com`
+（CloudBase 控制台 → 云托管 → weather-helper；环境 `nick-cloudbase`，上海地域）
+
+1. [tcb.cloud.tencent.com](https://tcb.cloud.tencent.com) 登录 → 选环境 → **云托管** → 新建服务
+   `weather-helper`，上传仓库根目录（或用 CloudBase MCP `manageCloudRun(action="deploy")` 从本地直接部署，
+   注意排除 `.venv`/`node_modules`——工具没有 ignore 参数，先用 `git archive HEAD | tar -x` 导出干净目录再传）
+2. 服务配置：
+
+   | 配置 | 值 | 原因 |
+   |---|---|---|
+   | CPU / 内存 | 0.25 核 / 0.5G | 最低档够用（Mem 必须是 CPU 的 2 倍） |
+   | 实例数 | Min=1 / **Max=1** | 调度器在进程内，缩到 0 就停抓数据；Max>1 会多实例重复跑任务 |
+   | 公网访问 | 开启 PUBLIC | PWA 安装与 Web Push 需要公网 HTTPS |
+   | 监听端口 | 8000 | 镜像 CMD 读 `PORT`，默认 8000 |
+
+3. 环境变量（服务设置 → 环境变量）：
 
    | 变量 | 值 |
    |---|---|
    | `PORT` | `8000` |
    | `DATABASE_URL` | `sqlite:////data/weather.db` |
-   | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `backend/.env` 里的两个值（或 `npx web-push generate-vapid-keys` 重新生成） |
-   | `VAPID_SUBJECT` | `mailto:你的邮箱` |
-   | `ADMIN_TOKEN` | 随机串（如 `python -c "import uuid; print(uuid.uuid4())"`），后台看板访问令牌 |
+   | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 沿用 `backend/.env` 里的值（不换密钥，已装用户的推送订阅继续有效） |
+   | `ADMIN_TOKEN` | `backend/.env` 里的值（后台看板令牌） |
 
-4. 服务右上角 **… → Attach Volume** → 挂载路径填 `/data`（保存 SQLite 数据库，重部署不丢数据）
-5. **Settings → Networking → Generate Domain** → 端口填 `8000` → 得到 `https://xxx.up.railway.app`（自动 HTTPS，PWA 安装与 Web Push 可用）
+4. 首次启动自动导入 57 个球场并抓取全部数据源（约 1 分钟出数据）；
+   验证看 `GET /api/health` 的 `db` 字段。
 
-首次启动会自动导入 57 个球场并抓取全部天气数据（约 1 分钟内出数据），可信度评分从零开始积累。
-球场来源有两路：LCSD 开放数据 feed（54 个）+ `backend/app/services/lcsd.py` 里的 `EXTRA_COURTS` 手工补录名单（开放数据还没收录的新场/非康文署场，坐标经 OpenStreetMap 核实）。想再加场，往 `EXTRA_COURTS` 里照格式添一条、推送即可，重启后自动合并；若哪天 feed 收录了同名场地会自动去重。
-注意：不挂 Volume 的话每次重新部署数据库都会清空、评分重新积累。
+球场来源有两路：LCSD 开放数据 feed + `backend/app/services/lcsd.py` 里的 `EXTRA_COURTS`
+手工补录名单（开放数据还没收录的新场/非康文署场，坐标经 OpenStreetMap 核实）。想再加场，
+往 `EXTRA_COURTS` 里照格式添一条、重新部署即可，启动时自动合并去重。
 
-**验证数据有没有丢**：访问 `https://你的域名/api/health`，看 `db` 字段——
-`db_file_created_at` 突然变成刚刚 = 卷丢了。
+**验证数据有没有丢**：看 `/api/health` 的 `db.db_file_created_at`——部署后突然变成刚刚 = 卷没挂上。
+
+**⚠️ 持久化（重要）**：默认容器盘是临时的，**每次重新部署 SQLite 会被清空**——
+预报/观测数据约 1 分钟自动补齐，但 30 天可信度评分、上报/打卡/反馈记录、推送订阅表会归零
+（已装用户的提醒会静默失效）。两个补法任选：
+
+- 控制台 → 服务设置 → 存储卷：创建/挂载 CFS 文件系统到 `/data`（单实例 + SQLite 没有并发写问题）
+- 或规划迁移到 PostgreSQL（尚未适配：除了驱动，还需改造 SQLite 专用的迁移与诊断逻辑，不能只换 `DATABASE_URL`）
+
+注意：CloudBase MCP 的 `deploy` 会**静默丢弃** `VolumesConf` 配置，挂卷只能在控制台做。
 
 ## 后台管理看板（/admin）
 
@@ -356,7 +391,7 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `GET /api/checkins/my`（Header `X-Device-ID: <uuid>`）我的打卡历史
 - `GET /api/checkins/report`（Header `X-Device-ID: <uuid>`）个人战报（打卡自动回顾当日天气）
 - `GET /api/checkins/peek?code=` 恢复码校验（换设备后找回打卡数据）
-- `GET /api/best?hour=YYYY-MM-DDTHH` 去哪打：该时段全场最干球场排行 + 未来 24 小时全港风险曲线（缺省下一整点）
+- `GET /api/best?hour=YYYY-MM-DDTHH` 去哪打：该时段全场最干球场排行 + 未来 24 小时全港风险曲线（缺省下一整点；只含新鲜预报，附覆盖球场数；非法/非整点/已过去/超未来24整点的参数返回422）
 - `GET /api/map/rain` 雨团地图（SWIRLS 网格数据，前端自绘渲染）
 - `POST /api/feedback`（Header `X-Device-ID: <uuid>`）用户意见反馈（10 分钟冷却 / 每日 5 条）
 - `GET /api/feedback/status` 反馈冷却/配额状态
@@ -380,3 +415,19 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 - LCSD SmartPlay 可租订时段展示（API 已知：`data.smartplay.lcsd.gov.hk`，5 分钟更新）
 - 用户私藏/审核制私人球场；信任等级与举报机制；融合概率纳入评分验证体系
+
+
+## 本地验证与 CI
+
+```powershell
+cd backend
+uv sync --frozen
+uv run pytest -q
+cd ../frontend
+npm ci
+npm test
+npm run build
+npm run test:browser
+```
+
+浏览器测试自动启动本地构建预览，默认使用本机 Edge；其他环境先运行 `npx playwright install chromium` 并设置 `BROWSER_CHANNEL=chromium`。API 全部使用确定性测试数据，不会提交真实上报或订阅。可用 `WEATHER_BASE_URL` 指向已启动的本地预览。GitHub Actions 自动执行后端、前端和 Chromium 回归；产物为 `.zcode/qa/`，不纳入 Git。

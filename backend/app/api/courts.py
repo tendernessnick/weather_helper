@@ -12,6 +12,8 @@ from ..models import (Climatology, Court, ForecastSnapshot, NowcastSnapshot,
                       UserReport)
 from ..services import analytics, comfort, fusion, hko_nowcast, verification
 from ..services import lightning as lightning_svc
+from ..services.freshness import (FORECAST_FRESH_SEC, NOWCAST_FRESH_SEC,
+                                 hk_iso, is_fresh, source_status)
 from ..services.hko import get_cached_current_weather
 
 router = APIRouter(tags=["courts"])
@@ -46,6 +48,8 @@ def _nowcast_badges(db: Session) -> dict[str, dict]:
         return badges
     since = latest_fetch[0]
     now = hk_now()
+    if not is_fresh(since, now, NOWCAST_FRESH_SEC):
+        return badges
     rows = db.execute(
         select(NowcastSnapshot)
         .where(NowcastSnapshot.fetched_at >= since)
@@ -185,6 +189,8 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
         clim_p = clim.get((s.target_hour.month, s.target_hour.hour))
         hourly_out.append({
             "hour": s.target_hour.isoformat(),
+            "fetched_at": hk_iso(s.fetched_at),
+            "stale": not is_fresh(s.fetched_at, now, FORECAST_FRESH_SEC),
             "pop": s.precip_prob,
             "corrected_pop": round(corrected * 100),
             "climatology_pop": round(clim_p * 100) if clim_p is not None else None,
@@ -215,7 +221,7 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
             light_age = now - datetime.fromisoformat(light["fetched_at"])
         except (KeyError, TypeError, ValueError):
             light_age = None
-        if light_age is not None and light_age <= timedelta(hours=2):
+        if light_age is not None and timedelta(0) <= light_age <= timedelta(hours=2):
             region = lightning_svc.region_for_court(court.lat, court.lon)
             lightning_out = {
                 "region": region,
@@ -226,8 +232,22 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
                 "fetched_at": light.get("fetched_at"),
             }
 
+    # A partial failed ingest can leave different issue ages in the same
+    # response. Report the oldest of the near-term rows and expose per-row
+    # stale flags, so clients must not turn a stale low number into "go".
+    forecast_issued = min((s.fetched_at for s in hourly[:6]), default=None)
+    nowcast_available = bool(nowcast and any(
+        datetime.fromisoformat(s["ending"]) > now for s in nowcast[1]))
+
     return {
         "court_id": court_id,
+        "data_status": {
+            "timezone": "Asia/Hong_Kong",
+            "generated_at": hk_iso(now),
+            "nowcast": source_status(nowcast[0] if nowcast else None, now,
+                                     NOWCAST_FRESH_SEC, available=nowcast_available),
+            "hourly": source_status(forecast_issued, now, FORECAST_FRESH_SEC),
+        },
         "nowcast": {
             "fetched_at": nowcast[0].isoformat() if nowcast else None,
             "steps": nowcast[1] if nowcast else [],
@@ -241,7 +261,7 @@ def court_weather(court_id: str, db: Session = Depends(get_db)):
         "sources": {
             "nowcast": "HKO SWIRLS gridded rainfall nowcast (0-2h, per 30 min)",
             "hourly": "Open-Meteo ensemble (hourly probability, up to 48h)",
-            "fused": "SWIRLS-weighted blend with calibrated forecast + climatology (0-6h)",
+            "fused": "Heuristic risk index: SWIRLS wet-step share + calibrated forecast + climatology (0-6h); not a calibrated probability",
             "lightning": "HKO cloud-to-ground flash counts, past hour by region",
         },
     }

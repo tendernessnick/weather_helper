@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { HourlyItem } from '../types';
 import Icon from './Icon';
-import { comfortNote, useLang, WEEKDAYS } from '../i18n';
+import { comfortNote, useLang } from '../i18n';
 import type { TKey } from '../i18n';
+import { hkDateKey, hkFloorHour, hkFormat, hkTimestamp, HOUR_MS } from '../utils/hkTime';
+import { hourIsStale, hourRisk, riskZone } from '../utils/playWindow';
+import type { FreshnessInfo } from '../utils/playWindow';
+import { useWeatherClock } from '../hooks/useWeatherClock';
+import { detailCopy } from '../detail-copy';
 
 type Metric = 'pop' | 'temp' | 'wind';
 
@@ -44,8 +49,7 @@ const ZONE_CHIP: Record<string, string> = {
 };
 
 function hourLabel(iso: string): string {
-  const d = new Date(iso);
-  return d.getHours().toString().padStart(2, '0');
+  return hkFormat(iso, { hour: '2-digit', hourCycle: 'h23' });
 }
 
 const COMFORT_CHIP: Record<string, string> = {
@@ -60,11 +64,7 @@ function verdictFor(t: ReturnType<typeof useLang>['t'], item: HourlyItem): strin
   // When a fused 0-6h value exists it is our best single number, so the
   // verdict leans on it instead of the corrected probability.
   const fused = item.fused_pop;
-  if (fused !== undefined) {
-    if (fused >= 60) return t('hourly.vFuseHigh', { f: fused });
-    if (fused >= 30) return t('hourly.vFuseEdge', { f: fused });
-    return t('hourly.vFuseLow', { f: fused });
-  }
+  if (fused !== undefined) return '';
 
   const official = item.pop;
   const corrected = item.corrected_pop ?? item.pop;
@@ -80,17 +80,18 @@ function verdictFor(t: ReturnType<typeof useLang>['t'], item: HourlyItem): strin
       && official >= 50 && corrected >= 50) {
     return t('hourly.vClimWin', { o: official, c: corrected, cl: clim });
   }
-  if (corrected >= 60) {
+  if (corrected > 60) {
     return t('hourly.vWet', { c: corrected });
   }
-  if (corrected >= 30) {
+  if (corrected > 30) {
     return t('hourly.vEdge', { c: corrected });
   }
   return t('hourly.vLow', { o: official, c: corrected });
 }
 
-export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
+export default function HourlyBars({ hourly, freshness, radarFreshness }: { hourly: HourlyItem[]; freshness?: FreshnessInfo; radarFreshness?: FreshnessInfo }) {
   const { t, lang } = useLang();
+  const now = useWeatherClock();
   const [metric, setMetric] = useState<Metric>('pop');
   const items = useMemo(() => hourly.slice(0, 48), [hourly]);
   const hasStats = items.some((i) => i.corrected_pop !== undefined);
@@ -98,36 +99,36 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
   // default selection: current hour, unless a worse zone shows up within 6h -
   // steer attention to the risk point.
   const defaultKey = useMemo(() => {
-    const now = new Date();
-    const nowHour = now.getHours();
     const pick = items.find((it) => {
-      const d = new Date(it.hour);
-      const within6 = d.getTime() - Date.now() <= 6 * 3600 * 1000;
-      return within6 && (it.zone === 'edge' || it.zone === 'no');
+      const difference = hkTimestamp(it.hour) - now;
+      const risk = hourRisk(it);
+      const within6 = difference >= -HOUR_MS && difference <= 6 * HOUR_MS;
+      return within6 && !hourIsStale(it, now, freshness, radarFreshness) && risk !== null && risk > 30;
     });
     // hour-of-day match must be same-day: once today's slot is no longer
     // served (fresh hour, next OM ingest), tomorrow's would grab the default.
     const fallback = items.find((it) => {
-      const d = new Date(it.hour);
-      return d.getHours() === nowHour && d.getDate() === now.getDate();
+      return hkTimestamp(it.hour) === hkFloorHour(now);
     });
     return (pick ?? fallback ?? items[0])?.hour ?? null;
-  }, [items]);
+  }, [items, now, freshness, radarFreshness]);
 
   const [selected, setSelected] = useState<string | null>(defaultKey);
   useEffect(() => {
     // keep selection valid when the hourly data refreshes
-    if (selected && !items.some((it) => it.hour === selected)) {
+    if (!selected || !items.some((it) => it.hour === selected)) {
       setSelected(defaultKey);
     }
   }, [items, selected, defaultKey]);
 
   const sel = items.find((it) => it.hour === selected) ?? null;
-  const selDate = sel ? new Date(sel.hour) : null;
-  const weekday = selDate ? WEEKDAYS[lang][selDate.getDay()] : '';
-  const selLabel = selDate
-    ? `${weekday} ${selDate.getHours().toString().padStart(2, '0')}:00–${(selDate.getHours() + 1).toString().padStart(2, '0')}:00`
+  const selDate = sel ? hkTimestamp(sel.hour) : null;
+  const selLabel = selDate !== null
+    ? `${hkFormat(selDate, { month: '2-digit', day: '2-digit' })} ${hkFormat(selDate)}–${hkFormat(selDate + HOUR_MS)} HKT`
     : '';
+  const selStale = sel ? hourIsStale(sel, now, freshness, radarFreshness) : false;
+  const selRisk = sel ? hourRisk(sel) : null;
+  const selZone = selRisk === null || selStale ? null : riskZone(selRisk);
 
   const METRIC_KEY: Record<Metric, TKey> = {
     pop: 'hourly.metricPop', temp: 'hourly.metricTemp', wind: 'hourly.metricWind',
@@ -175,26 +176,29 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
           <div className="mt-3 overflow-x-auto pb-1 pr-1">
             <div className="flex min-w-max items-end gap-[3px] pr-2" style={{ height: 120 }}>
               {items.map((item) => {
-                const d = new Date(item.hour);
                 const label = hourLabel(item.hour);
-                const isNow = new Date().getHours() === d.getHours()
-                  && new Date().getDate() === d.getDate();
+                const isNow = hkTimestamp(item.hour) === hkFloorHour(now);
                 const isSel = item.hour === selected;
                 const bar = barOf(item);
+                const stale = hourIsStale(item, now, freshness, radarFreshness);
+                const risk = hourRisk(item);
+                const zone = risk !== null && !stale ? riskZone(risk) : null;
                 const thunder = THUNDER_CODES.includes(item.weather_code);
                 return (
                   <button
                     key={item.hour}
                     onClick={() => setSelected(item.hour)}
-                    className={`relative flex w-[30px] flex-col items-center rounded-lg px-0.5 pt-0.5 ${ZONE_BG[item.zone ?? ''] ?? ''} ${isSel ? 'ring-2 ring-slate-700' : ''}`}
+                    aria-pressed={isSel}
+                    aria-label={`${hkDateKey(item.hour)} ${label}:00 HKT, ${t('hourly.tipOfficial', { p: item.pop })}${stale ? `, ${detailCopy(lang, 'staleLabel')}` : ''}`}
+                    className={`relative flex w-[34px] flex-col items-center rounded-lg px-0.5 pt-0.5 ${zone ? ZONE_BG[zone] : 'bg-slate-100'} ${isSel ? 'ring-2 ring-slate-700' : ''}`}
                     title={[
-                      `${d.getMonth() + 1}/${d.getDate()} ${label}:00`,
+                      `${hkDateKey(item.hour)} ${label}:00 HKT`,
                       t('hourly.tipOfficial', { p: item.pop }),
                       item.corrected_pop !== undefined ? t('hourly.tipCorrected', { p: item.corrected_pop }) : null,
-                      item.fused_pop !== undefined ? t('hourly.tipFused', { p: item.fused_pop }) : null,
+                      item.fused_pop !== undefined ? `${detailCopy(lang, 'fusedLabel')}: ${item.fused_pop}/100` : null,
                       item.climatology_pop !== null && item.climatology_pop !== undefined
                         ? t('hourly.tipClim', { p: item.climatology_pop }) : null,
-                      item.zone ? t('hourly.tipZone', { z: t(ZONE_KEY[item.zone]) }) : null,
+                      stale ? detailCopy(lang, 'staleLabel') : zone ? t('hourly.tipZone', { z: t(ZONE_KEY[zone]) }) : null,
                     ].filter(Boolean).join('\n')}
                   >
                     <span className="text-[10.5px] text-slate-500">{bar ? bar.label : '—'}</span>
@@ -237,8 +241,8 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
             <div className="mt-2 rounded-xl bg-slate-50 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">{selLabel}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ZONE_CHIP[sel.zone ?? 'go']}`}>
-                  {t('hourly.suggest', { z: t(ZONE_KEY[sel.zone ?? 'go']) })}
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${selZone ? ZONE_CHIP[selZone] : 'bg-slate-200 text-slate-700'}`}>
+                  {selZone ? t('hourly.suggest', { z: t(ZONE_KEY[selZone]) }) : detailCopy(lang, 'staleLabel')}
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
@@ -259,14 +263,15 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
-                💡 {verdictFor(t, sel)}
+              <p className="mt-2 text-[12px] leading-relaxed text-slate-600">
+                {selStale ? detailCopy(lang, 'staleHourly') : sel.fused_pop !== undefined
+                  ? detailCopy(lang, selZone === 'no' ? 'highBody' : selZone === 'edge' ? 'edgeBody' : 'lowBody')
+                  : verdictFor(t, sel)}
               </p>
               {sel.fused_pop !== undefined && (
                 <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
                   <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                  {(sel.fused_swirls ? t('hourly.fusedLineRadar', { f: sel.fused_pop })
-                    : t('hourly.fusedLineClim', { f: sel.fused_pop }))}
+                  {detailCopy(lang, 'fusedLabel')}: {sel.fused_pop}/100
                 </p>
               )}
               {sel.comfort && sel.comfort.level && (
@@ -291,7 +296,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
               <>
                 <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-500" />{t('hourly.official')}</span>
                 <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-700" />{t('hourly.corrected')}</span>
-                <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />{t('hourly.legendFused')}</span>
+                <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />{detailCopy(lang, 'fusedLabel')}</span>
               </>
             )}
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-50 ring-1 ring-emerald-200" />{t('hourly.legendGo')}</span>
@@ -299,7 +304,7 @@ export default function HourlyBars({ hourly }: { hourly: HourlyItem[] }) {
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-50 ring-1 ring-rose-200" />{t('hourly.legendNo')}</span>
           </div>
           <p className="mt-1 text-[12px] text-slate-500">
-            {t('hourly.tip')}
+            {detailCopy(lang, 'chartNote')}
           </p>
         </>
       )}

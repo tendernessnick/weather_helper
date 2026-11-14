@@ -1,3 +1,4 @@
+import { hkTimestamp } from '../utils/hkTime';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { RecentReport } from '../types';
@@ -37,7 +38,7 @@ export default function RecentReports({ courtId }: { courtId: string }) {
   }
 
   const timeAgo = (iso: string): string => {
-    const min = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    const min = Math.max(1, Math.round((Date.now() - hkTimestamp(iso)) / 60000));
     return min < 60 ? t('recent.ago', { m: min }) : t('recent.agoH', { h: Math.floor(min / 60) });
   };
 

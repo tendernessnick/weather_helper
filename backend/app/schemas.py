@@ -1,7 +1,9 @@
 """Request/response schemas."""
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .services.freshness import hk_local
 
 
 class ReportIn(BaseModel):
@@ -34,6 +36,8 @@ class SubscriptionIn(BaseModel):
     play_at: datetime  # HK local naive time
     hours_before: float = Field(default=0.5, ge=0.1, le=24)
 
+    _normalize_play_at = field_validator("play_at")(hk_local)
+
 
 class PollingSubscriptionIn(BaseModel):
     """Reminder delivered by in-page polling (no Web Push service available)."""
@@ -41,6 +45,8 @@ class PollingSubscriptionIn(BaseModel):
     court_id: str
     play_at: datetime  # HK local naive time
     hours_before: float = Field(default=0.5, ge=0.1, le=24)
+
+    _normalize_play_at = field_validator("play_at")(hk_local)
 
 
 class FeedbackIn(BaseModel):

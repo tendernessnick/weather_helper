@@ -11,7 +11,8 @@ each starts from an empty database in fact and in cache.
 """
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite://")  # in-memory for tests
+# Tests call drop_all; never inherit an exported developer/production URL.
+os.environ["DATABASE_URL"] = "sqlite://"  # in-memory for tests
 os.environ.setdefault("ADMIN_TOKEN", "test-token")
 
 import pytest  # noqa: E402

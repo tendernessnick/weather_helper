@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { hkFormat } from '../utils/hkTime';
 import type { CheckinReport as ReportData, CheckinSession } from '../types';
 import { getDeviceId } from '../device';
 import Icon from './Icon';
@@ -14,8 +15,7 @@ const TAG_STYLE: Record<string, { labelKey: TKey; cls: string }> = {
 };
 
 function fmtDay(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return hkFormat(iso, { month: 'numeric', day: 'numeric' }, 'en-US');
 }
 
 function SessionRow({ s }: { s: CheckinSession }) {

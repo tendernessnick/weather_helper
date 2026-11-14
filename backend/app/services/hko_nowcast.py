@@ -8,12 +8,14 @@ import csv
 import io
 import json
 import logging
+import math
 from datetime import datetime
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import hk_now, settings
+from ..config import settings
 from ..models import Court, KvCache, NowcastSnapshot
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ def downsample(grids: dict[datetime, list[tuple[float, float, float]]]) -> list[
 
 def parse_grid(text: str) -> dict[datetime, list[tuple[float, float, float]]]:
     """Group CSV rows by ending time -> [(lat, lon, mm), ...]."""
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
     grids: dict[datetime, list[tuple[float, float, float]]] = {}
     for row in reader:
         try:
@@ -63,8 +65,30 @@ def parse_grid(text: str) -> dict[datetime, list[tuple[float, float, float]]]:
             mm = float(row[COL_MM])
         except (KeyError, TypeError, ValueError):
             continue
+        if not (math.isfinite(lat) and math.isfinite(lon) and math.isfinite(mm)
+                and -90 <= lat <= 90 and -180 <= lon <= 180 and mm >= 0):
+            continue
         grids.setdefault(ending, []).append((lat, lon, mm))
     return grids
+
+
+def parse_issue_time(text: str) -> datetime:
+    """Use the upstream issue, never download time, as the freshness clock.
+
+    Re-downloading an old file must not reset its age. An absent/invalid issue
+    is rejected rather than silently relabelled as fresh. A mixed file takes
+    its oldest issue so a partial upstream refresh cannot hide stale cells.
+    """
+    reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
+    issued = set()
+    for row in reader:
+        try:
+            issued.add(datetime.strptime(row[COL_UPDATED], "%Y%m%d%H%M"))
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("F3 CSV missing a valid upstream issue time") from None
+    if not issued:
+        raise ValueError("F3 CSV contained no upstream issue time")
+    return min(issued)
 
 
 def _nearest_mm(points: list[tuple[float, float, float]],
@@ -86,9 +110,9 @@ def ingest_nowcast(db: Session) -> int:
     grids = parse_grid(resp.text)
     if not grids:
         raise ValueError("F3 CSV contained no usable rows")
+    fetched_at = parse_issue_time(resp.text)
 
     courts = db.query(Court).all()
-    fetched_at = hk_now()
     n = 0
     # Rain map payload: coarse wet cells per step, latest fetch only.
     db.merge(KvCache(
@@ -97,9 +121,14 @@ def ingest_nowcast(db: Session) -> int:
                                "steps": downsample(grids)}),
         updated_at=fetched_at,
     ))
-    # fetched_at is fresh on every run, so (court_id, fetched_at) never
-    # collides; plain inserts keep the full 12-minute history.
+    # A repeated download of the same issue is idempotent. Keep the original
+    # upstream issue in fetched_at so stalled feeds remain visibly stale.
+    existing = set(db.execute(
+        select(NowcastSnapshot.court_id)
+        .where(NowcastSnapshot.fetched_at == fetched_at)).scalars())
     for court in courts:
+        if court.id in existing:
+            continue
         steps = []
         for ending in sorted(grids):
             mm = _nearest_mm(grids[ending], court.lat, court.lon)

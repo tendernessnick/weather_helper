@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useLang } from '../i18n';
 import type { Court } from '../types';
+import { hkDateKey, hkFormat, hkTimestamp } from '../utils/hkTime';
+import { reminderCopy } from './reminder-copy';
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -12,12 +14,25 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return buf;
 }
 
-function defaultPlayAt(): string {
-  // datetime-local value one hour from now, rounded to the half hour
-  const d = new Date(Date.now() + 60 * 60 * 1000);
-  d.setMinutes(d.getMinutes() >= 30 ? 30 : 0, 0, 0);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+export function defaultPlayAt(now = Date.now()): string {
+  // The input is explicitly HK local time, even on a traveller's device.
+  // HK is UTC+8 without DST, so half-hour epoch boundaries align locally.
+  const timestamp = Math.floor((now + 60 * 60_000) / (30 * 60_000)) * (30 * 60_000);
+  return `${hkDateKey(timestamp)}T${hkFormat(timestamp)}`;
+}
+
+async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('PUSH_TIMEOUT')), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function requestNotificationPermission(): Promise<NotificationPermission> {
@@ -31,7 +46,8 @@ async function requestNotificationPermission(): Promise<NotificationPermission> 
 }
 
 export default function SubscribeBox({ court }: { court: Court }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const copy = reminderCopy(lang);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [playAt, setPlayAt] = useState(defaultPlayAt());
   const [message, setMessage] = useState<string | null>(null);
@@ -44,28 +60,38 @@ export default function SubscribeBox({ court }: { court: Court }) {
   }, []);
 
   const subscribe = async () => {
+    if (busy) return;
+    if (!Number.isFinite(hkTimestamp(playAt)) || hkTimestamp(playAt) <= Date.now()) {
+      setMessage(copy.invalidTime);
+      setTone('err');
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
+      // Request permission directly from the user gesture, before network
+      // awaits. Safari and iOS may refuse prompts made later in the chain.
+      const permission = await requestNotificationPermission();
       let pushOk = false;
       if (pushEnabled && 'serviceWorker' in navigator && 'PushManager' in window) {
         try {
-          if (await requestNotificationPermission() !== 'granted') {
+          if (permission !== 'granted') {
             throw new Error(t('sub.noPerm'));
           }
           const { public_key } = await api.pushPublicKey();
           if (!public_key) throw new Error(t('sub.noServer'));
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager.subscribe({
+          // ready never resolves without an active worker (e.g. dev mode).
+          const reg = await within(navigator.serviceWorker.ready, 5_000);
+          const sub = await within(reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(public_key),
-          });
+          }), 10_000);
           const json = sub.toJSON() as {
             endpoint: string;
             keys: { p256dh: string; auth: string };
           };
-          // datetime-local strings are naive local time - the backend stores HK
-          // local time, so send it unchanged instead of converting to UTC.
+          // The labelled input contains Hong Kong wall time. Keep the API's
+          // naive HK format rather than reinterpreting it in the device zone.
           await api.subscribe({
             subscription: { endpoint: json.endpoint, keys: json.keys },
             court_id: court.id,
@@ -82,15 +108,12 @@ export default function SubscribeBox({ court }: { court: Court }) {
       if (pushOk) {
         setMessage(t('sub.pushOk'));
       } else {
-        // System notification still improves the polling experience when the
-        // tab is in the background; denial just means in-page banners only.
-        await requestNotificationPermission();
         await api.subscribePolling({
           court_id: court.id,
           play_at: playAt,
           hours_before: 0.5,
         });
-        setMessage(t('sub.poll'));
+        setMessage(copy.polling);
       }
       setTone('ok');
     } catch (err) {
@@ -107,23 +130,30 @@ export default function SubscribeBox({ court }: { court: Court }) {
       <p className="mt-1 text-[12px] text-slate-500">
         {t('sub.note')}
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <label htmlFor={`play-at-${court.id}`} className="mt-3 block text-[12px] font-medium text-slate-600">
+        {copy.timeLabel}
+      </label>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <input
+          id={`play-at-${court.id}`}
           type="datetime-local"
+          min={`${hkDateKey()}T${hkFormat(Date.now())}`}
           value={playAt}
-          onChange={(e) => setPlayAt(e.target.value)}
-          className="rounded-[10px] border-0 bg-[#F2F2F7] px-2.5 py-2 text-xs outline-none focus:ring-2 focus:ring-[#0071E3]/40"
+          disabled={busy}
+          onChange={(e) => { setPlayAt(e.target.value); setMessage(null); }}
+          aria-invalid={tone === 'err' && message === copy.invalidTime}
+          className="min-h-11 min-w-0 max-w-full flex-1 rounded-[10px] border-0 bg-[#F2F2F7] px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0071E3]/40"
         />
         <button
           onClick={subscribe}
           disabled={busy}
-          className="rounded-full bg-[#007AFF] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
+          className="min-h-11 rounded-full bg-[#007AFF] px-3.5 py-2 text-[13px] font-semibold text-white disabled:bg-black/20"
         >
           {busy ? t('sub.busy') : t('sub.cta')}
         </button>
       </div>
       {message && (
-        <p className={`mt-2 text-xs leading-relaxed ${tone === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>
+        <p role="status" className={`mt-2 text-xs leading-relaxed ${tone === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>
           {message}
         </p>
       )}

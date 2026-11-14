@@ -8,6 +8,8 @@ radar reach. Derived on read from already-stored snapshots - no new tables.
 """
 from datetime import datetime, timedelta
 
+from .freshness import NOWCAST_FRESH_SEC, hk_local, is_fresh
+
 # How far ahead the fused curve reaches; beyond this the plain corrected
 # probability is shown as-is.
 FUSE_HOURS = 6
@@ -19,32 +21,34 @@ SWIRLS_WEIGHT = 0.7
 CLIM_WEIGHT = 0.3
 # F3 is issued every 12 minutes; older than ~2 cycles the radar curve is
 # stale and must not participate.
-SWIRLS_FRESH_SEC = 25 * 60
+SWIRLS_FRESH_SEC = NOWCAST_FRESH_SEC
 
 
 def swirls_hour_probs(steps: list[dict], now: datetime,
                       threshold_mm: float) -> dict[datetime, float]:
-    """SWIRLS rain probability per hour bucket, keyed by bucket start hour.
+    """SWIRLS wet-step share per hour bucket, keyed by bucket start hour.
 
     Each 30-minute step accumulates rainfall up to its "ending" time, so the
     bucket (T, T+1h] is described by the steps ending inside it. A bucket's
-    probability is the share of its steps at or above the rain threshold;
+    signal is the share of steps at or above the rain threshold. This is a
+    deterministic temporal coverage fraction, NOT a calibrated probability;
     buckets without any step are simply absent (no radar coverage there).
     """
+    now = hk_local(now)
     buckets: dict[datetime, list[bool]] = {}
     for s in steps:
         try:
-            ending = datetime.fromisoformat(s["ending"])
+            ending = hk_local(datetime.fromisoformat(s["ending"]))
+            mm = float(s["mm"])
         except (KeyError, TypeError, ValueError):
             continue
-        if ending <= now:
+        if ending <= now or not 0 <= mm < float("inf"):
             continue  # already fallen
         # A step ending exactly on the hour belongs to the bucket that just
         # closes, not the one starting there - hence the 1-second nudge.
         hour = (ending - timedelta(seconds=1)).replace(minute=0, second=0,
                                                        microsecond=0)
-        buckets.setdefault(hour, []).append(
-            float(s.get("mm") or 0.0) >= threshold_mm)
+        buckets.setdefault(hour, []).append(mm >= threshold_mm)
     return {h: 100.0 * sum(wet) / len(wet) for h, wet in buckets.items()}
 
 
@@ -67,8 +71,7 @@ def fused_overlay(steps: list[dict], fetched_at: datetime | None,
     "climatology_pop" (or None). SWIRLS participates only while its snapshot
     is fresh and a step covers the hour.
     """
-    fresh = (fetched_at is not None
-             and (now - fetched_at).total_seconds() <= SWIRLS_FRESH_SEC)
+    fresh = is_fresh(fetched_at, now, SWIRLS_FRESH_SEC)
     probs = swirls_hour_probs(steps, now, threshold_mm) if fresh else {}
 
     out: list[tuple[int, bool]] = []
@@ -77,6 +80,7 @@ def fused_overlay(steps: list[dict], fetched_at: datetime | None,
         hour = item["hour"]
         if not isinstance(hour, datetime):
             hour = datetime.fromisoformat(hour)
+        hour = hk_local(hour)
         p_sw = probs.get(hour)
         clim = item.get("climatology_pop")
         fused = fuse(p_sw,

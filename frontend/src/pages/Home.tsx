@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { hkTimestamp } from '../utils/hkTime';
 import Icon from '../components/Icon';
 import { courtName, useLang } from '../i18n';
 import type { TKey } from '../i18n';
@@ -83,6 +84,7 @@ export default function Home() {
       try {
         const { latitude: lat, longitude: lon } = pos.coords;
         const { courts } = await api.courts('', '');
+        if (!courts.length) throw new Error('No courts available');
         const nearest = (courts as CourtListItem[]).reduce((best, c) =>
           haversineMeters(lat, lon, c.lat, c.lon)
           < haversineMeters(lat, lon, best.lat, best.lon) ? c : best);
@@ -100,7 +102,7 @@ export default function Home() {
   };
 
   const timeAgo = (iso: string): string => {
-    const min = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    const min = Math.max(1, Math.round((Date.now() - hkTimestamp(iso)) / 60000));
     return min < 60
       ? t('recent.ago', { m: min })
       : t('recent.agoH', { h: Math.floor(min / 60) });
@@ -128,12 +130,12 @@ export default function Home() {
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate-500 [text-wrap:pretty]">{t('home.callBody')}</p>
         </div>
         <div className="mx-auto mt-4 max-w-[340px] space-y-3">
-          <a
-            href="/courts"
+          <Link
+            to="/courts"
             className="block rounded-full bg-gradient-to-b from-[#3DD968] to-[#26B455] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(52,199,89,0.65)] ring-1 ring-white/30 transition active:from-[#1FA84C] active:to-[#178F41]"
           >
             {t('home.ctaCourts')} →
-          </a>
+          </Link>
           <button
             onClick={goToNearest}
             disabled={locating}
@@ -191,7 +193,7 @@ export default function Home() {
           <ul className="mt-2 divide-y divide-black/5">
             {pulse.map((r) => (
               <li key={`${r.court_id}-${r.created_at}`}>
-                <a href={`/courts/${r.court_id}`} className="flex items-center gap-2 py-2.5">
+                <Link to={`/courts/${r.court_id}`} className="flex items-center gap-2 py-2.5">
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                     r.was_raining ? 'bg-[#E5F1FB] text-[#0071E3]' : 'bg-[#E8F8ED] text-[#1B7A3D]'
                   }`}>
@@ -211,7 +213,7 @@ export default function Home() {
                   }`}>
                     {t(INTENSITY_KEY[r.intensity] ?? 'intensity.none')}
                   </span>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

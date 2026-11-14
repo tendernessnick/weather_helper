@@ -1,3 +1,5 @@
+import { useWeatherClock } from '../hooks/useWeatherClock';
+import { hkFormat, hkTimestamp } from '../utils/hkTime';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { CourtListItem } from '../types';
@@ -20,7 +22,6 @@ interface ViewBox { x: number; y: number; w: number; h: number }
 const FULL_VIEW: ViewBox = { x: 0, y: 0, w: W, h: H };
 const MAX_ZOOM = 4; // furthest zoom-in (view.w >= W / MAX_ZOOM)
 
-const STEP_KEYS: TKey[] = ['map.step0', 'map.step1', 'map.step2', 'map.step3'];
 
 // compass index → i18n key
 const DIR_KEYS: TKey[] = ['dir.N', 'dir.NE', 'dir.E', 'dir.SE', 'dir.S', 'dir.SW', 'dir.W', 'dir.NW'];
@@ -64,11 +65,12 @@ function cellColor(mm: number): string {
 }
 
 function Legend() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   return (
     <div className="pointer-events-none absolute bottom-1.5 left-2 flex items-center gap-2 text-[9px] text-white/60">
       <span className="flex items-center gap-0.5"><span className="inline-block h-2 w-2 rounded-[2px] bg-[#34C759]" />{t('map.legendDry')}</span>
       <span className="flex items-center gap-0.5"><span className="inline-block h-2 w-2 rounded-[2px] bg-[#FF5A5F]" />{t('map.legendWet')}</span>
+      <span className="flex items-center gap-0.5"><span className="inline-block h-2 w-2 rounded-[2px] bg-[#94A3B8]" />{lang === 'en' ? 'No data' : lang === 'hant' ? '暫缺' : '暂无'}</span>
       <span className="flex items-center gap-0.5">
         {[0.1, 0.5, 2, 5].map((mm) => (
           <span key={mm} className="inline-block h-2 w-2.5 rounded-[2px]" style={{ background: cellColor(mm) }} />
@@ -83,6 +85,7 @@ function MapSvg({ step, courts, me, view = FULL_VIEW }:
   { step?: MapStep; courts: CourtListItem[]; me: { lat: number; lon: number } | null; view?: ViewBox }) {
   // shrink overlay glyph sizes with the view so they stay constant on screen
   const k = view.w / W;
+  const now = useWeatherClock();
 
   const landPath = useMemo(() => HK_LAND.map((ring) =>
     'M' + ring.map(([lon, lat]) => {
@@ -112,9 +115,11 @@ function MapSvg({ step, courts, me, view = FULL_VIEW }:
       {courts.map((c) => {
         const [x, y] = project(c.lat, c.lon);
         if (x < 0 || x > W || y < 0 || y > H) return null;
-        const wet = c.nowcast?.rain;
+        const issue = c.nowcast ? hkTimestamp(c.nowcast.fetched_at) : Number.NaN;
+        const known = Number.isFinite(issue) && now >= issue && now - issue <= 25 * 60_000;
+        const wet = known ? c.nowcast?.rain : undefined;
         return <circle key={c.id} cx={x} cy={y} r={2.2 * k}
-                       fill={wet ? '#FF5A5F' : '#34C759'} fillOpacity="0.9"
+                       data-court-id={c.id} fill={wet === undefined ? '#94A3B8' : wet ? '#FF5A5F' : '#34C759'} fillOpacity="0.9"
                        stroke="#fff" strokeWidth={0.6 * k} />;
       })}
       {/* user */}
@@ -236,21 +241,23 @@ function ZoomableMap({ step, courts, me }:
 }
 
 export default function RainMap() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const now = useWeatherClock();
   const [map, setMap] = useState<RainMapData | null>(null);
   const [courts, setCourts] = useState<CourtListItem[]>([]);
   const [stepIdx, setStepIdx] = useState(0);
   const [me, setMe] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [full, setFull] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const load = () => Promise.all([
-    fetch('/api/map/rain').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    api.rainMap<RainMapData>().catch(() => null),
     api.courts('', ''),
   ]).then(([m, c]) => {
     if (m) setMap(m);
     setCourts(c.courts);
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => setLoaded(true));
 
   useEffect(() => {
     load();
@@ -280,8 +287,9 @@ export default function RainMap() {
   }, [me, step]);
 
   const locate = () => {
+    if (!navigator.geolocation) return;
     setLocating(true);
-    navigator.geolocation?.getCurrentPosition(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         setMe({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         setLocating(false);
@@ -292,20 +300,21 @@ export default function RainMap() {
   };
 
   const updatedAgo = map
-    ? Math.max(0, Math.round((Date.now() - new Date(map.fetched_at).getTime()) / 60000))
+    ? Math.max(0, Math.round((now - hkTimestamp(map.fetched_at)) / 60000))
     : null;
-  const updatedLabel = updatedAgo !== null ? t('map.updated', { n: updatedAgo }) : t('common.loading');
+  const fresh = map && Number.isFinite(hkTimestamp(map.fetched_at)) && now >= hkTimestamp(map.fetched_at) && now - hkTimestamp(map.fetched_at) <= 25 * 60_000;
+  const updatedLabel = updatedAgo !== null ? t('map.updated', { n: updatedAgo }) : loaded ? '—' : t('common.loading');
 
   const stepChips = (map?.steps ?? []).map((_, i) => (
     <button key={i} onClick={() => setStepIdx(i)}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            className={`min-h-11 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               i === stepIdx ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#3C3C43]'
             }`}>
-      {t(STEP_KEYS[i] ?? 'map.step0')}
+      {hkFormat(map!.steps[i].ending)} HKT
     </button>
   ));
 
-  const nearestNote = me && nearest && (
+  const nearestNote = fresh && me && nearest && (
     <p className="rounded-[10px] bg-[#F2F2F7] p-2 text-[11px] font-medium leading-relaxed text-[#3C3C43]">
       💡 {t('map.nearest', { dir: t(compassKeyOf(me.lat, me.lon, nearest.lat, nearest.lon)), km: nearest.km.toFixed(0) })}
       {nearest.km < 8 ? t('map.near') : nearest.km < 20 ? t('map.mid') : t('map.far')}
@@ -320,6 +329,7 @@ export default function RainMap() {
       </div>
       <p className="mt-0.5 text-[11px] text-[#6D6D72]">{t('map.subtitle')}</p>
 
+      {loaded && !fresh && <p role="status" className="mt-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{lang === 'en' ? 'Rain map unavailable or out of date. Do not use it as a live picture.' : lang === 'hant' ? '雨圖缺失或已過期，不能用來判斷即時雨勢。' : '雨图缺失或已过期，不能用来判断即时雨势。'}</p>}
       {step && (
         <button type="button" onClick={() => setFull(true)} aria-label={t('map.openAria')}
                 className="relative mt-2 block w-full cursor-pointer overflow-hidden rounded-[12px] bg-[#0F2033] text-left active:opacity-90"
@@ -333,7 +343,7 @@ export default function RainMap() {
       )}
 
       {/* step switcher + locate */}
-      <div className="mt-2 flex items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {stepChips}
         <button onClick={locate} disabled={locating}
                 className="ml-auto flex items-center gap-1 rounded-full bg-[#F2F2F7] px-2.5 py-1 text-[11px] font-semibold text-[#007AFF]">

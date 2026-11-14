@@ -1,38 +1,43 @@
 import type { NowcastStep } from '../types';
 import Icon from './Icon';
 import { useLang } from '../i18n';
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
+import { hkFormat, hkTimestamp } from '../utils/hkTime';
+import { useWeatherClock } from '../hooks/useWeatherClock';
+import { detailCopy } from '../detail-copy';
+import type { FreshnessInfo } from '../utils/playWindow';
+import { sourceIsFresh } from '../utils/playWindow';
 
 export default function NowcastStrip({
-  steps, fetchedAt,
-}: { steps: NowcastStep[]; fetchedAt: string | null }) {
-  const { t } = useLang();
+  steps, fetchedAt, freshness,
+}: { steps: NowcastStep[]; fetchedAt: string | null; freshness?: FreshnessInfo }) {
+  const { t, lang } = useLang();
+  const now = useWeatherClock();
+  const age = fetchedAt ? now - hkTimestamp(fetchedAt) : Number.NaN;
+  const fresh = sourceIsFresh(freshness, now) && Number.isFinite(age) && age >= 0 && age <= (freshness?.max_age_minutes ?? 25) * 60000;
+  const validSteps = steps.filter((step) => Number.isFinite(step.mm) && step.mm >= 0 && Number.isFinite(hkTimestamp(step.ending)));
   return (
     <section className="ios-card mx-4 mt-4 p-4">
       <div className="flex items-baseline justify-between">
         <h2 className="text-[15px] font-bold tracking-tight">{t('now.title')}</h2>
         <span className="text-[12px] text-[#8E8E93]">
-          {fetchedAt ? t('now.updated', { t: fmtTime(fetchedAt) }) : ''}
+          {fetchedAt ? t('now.updated', { t: `${hkFormat(fetchedAt)} HKT` }) : ''}
         </span>
       </div>
-      {steps.length === 0 ? (
+      {!fresh && fetchedAt && <p role="status" className="mt-3 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-900">{detailCopy(lang, 'nowcastStale')}</p>}
+      {validSteps.length === 0 ? (
         <p className="mt-3 text-xs text-[#8E8E93]">{t('now.empty')}</p>
       ) : (
         <ol className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {steps.map((step) => {
+          {validSteps.map((step) => {
             const raining = step.mm >= 0.05;
             return (
               <li
                 key={step.ending}
                 className={`flex min-w-[68px] flex-col items-center rounded-[12px] px-2 py-2 ${
-                  raining ? 'bg-[#E5F1FB] text-[#0071E3]' : 'bg-[#F2F2F7] text-[#8E8E93]'
+                  fresh && raining ? 'bg-[#E5F1FB] text-[#0071E3]' : 'bg-[#F2F2F7] text-slate-600'
                 }`}
               >
-                <span className="text-xs font-medium">{fmtTime(step.ending)}</span>
+                <span className="text-xs font-medium">{hkFormat(step.ending)}</span>
                 <span className="mt-1 text-base" aria-hidden>{raining ? <Icon name="rain" className="h-4 w-4" /> : '·'}</span>
                 <span className="text-[11px] font-medium">{step.mm.toFixed(1)}mm</span>
               </li>

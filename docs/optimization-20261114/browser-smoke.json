@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "name": "3 languages × 4 widths: list navigation and horizontal layout",
+      "passed": true
+    },
+    {
+      "name": "saved courts persist and district/search filters combine",
+      "passed": true
+    },
+    {
+      "name": "planner uses selected duration and blocks stale/missing/partial verdicts",
+      "passed": true
+    },
+    {
+      "name": "subscription defaults and posted times stay Hong Kong time in both zones",
+      "passed": true
+    },
+    {
+      "name": "Best discards an older response and recovers from errors and missing forecasts",
+      "passed": true
+    },
+    {
+      "name": "long-open rankings expire before suggesting a court",
+      "passed": true
+    },
+    {
+      "name": "list can retry and filters combine locally without extra requests",
+      "passed": true
+    },
+    {
+      "name": "unknown reminders and missing radar dots never imply no rain",
+      "passed": true
+    },
+    {
+      "name": "offline planner and elapsed radar validity remove low risk advice",
+      "passed": true
+    },
+    {
+      "name": "home, ranking and planner: 3 languages × 4 widths, no overflow or missing names",
+      "passed": true
+    }
+  ],
+  "pageErrors": [],
+  "capturedAt": "2026-11-14T11:28:08.626Z"
+}

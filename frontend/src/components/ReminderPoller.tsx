@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Reminder } from '../types';
 import { useLang } from '../i18n';
+import { reminderCopy } from './reminder-copy';
 
 interface Toast extends Reminder {
   id: string;
+}
+
+// Older API responses have no status field. Missing PoP with no positive
+// radar signal has always meant unknown, never evidence of a dry session.
+function unknownRisk(reminder: Reminder): boolean {
+  return reminder.risk_status === 'unknown' || (!reminder.risky && reminder.pop == null);
 }
 
 /** Polls for due polling-mode reminders (fallback when Web Push is
@@ -12,6 +19,7 @@ interface Toast extends Reminder {
  * otherwise as an in-page banner. Mounted once at the app root. */
 export default function ReminderPoller() {
   const { t, lang } = useLang();
+  const copy = reminderCopy(lang);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
@@ -20,9 +28,10 @@ export default function ReminderPoller() {
         : lang === 'hant' ? (r.court_name_tc ?? r.court_name) : r.court_name;
 
     const deliver = (r: Reminder) => {
-      const text = r.risky
-        ? t('remind.riskyText', { name: nameOf(r), hhmm: r.play_hhmm, p: r.pop ?? '—' })
-        : t('remind.okText', { name: nameOf(r), hhmm: r.play_hhmm });
+      const body = unknownRisk(r) ? copy.unknown : r.risky
+        ? r.pop == null ? copy.radarRain : t('remind.riskyBody', { p: r.pop })
+        : copy.dry;
+      const text = `${nameOf(r)} · ${r.play_hhmm} — ${body}`;
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
           const n = new Notification(t('remind.title'), { body: text, icon: '/icon.svg' });
@@ -64,19 +73,19 @@ export default function ReminderPoller() {
         <div
           key={tm.id}
           className={`ios-card border-l-4 p-3 shadow-lg ${
-            tm.risky
+            tm.risky || unknownRisk(tm)
               ? 'border-amber-300 bg-amber-50/95'
               : 'border-[#34C759]'
           }`}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="text-xs font-medium leading-relaxed">
-              {tm.risky ? '🌧️ ' : '☀️ '}{t('remind.banner', { hhmm: tm.play_hhmm })}
-              <div className="mt-0.5 font-normal text-slate-600">{tm.court_name}</div>
-              <div className={tm.risky ? 'text-amber-800' : 'text-emerald-800'}>
-                {tm.risky
-                  ? t('remind.riskyBody', { p: tm.pop ?? '—' })
-                  : t('remind.okBody')}
+              {unknownRisk(tm) ? '◷ ' : tm.risky ? '🌧️ ' : '☀️ '}{t('remind.banner', { hhmm: tm.play_hhmm })}
+              <div className="mt-0.5 font-normal text-slate-600">{lang === 'en' ? tm.court_name_en ?? tm.court_name : lang === 'hant' ? tm.court_name_tc ?? tm.court_name : tm.court_name}</div>
+              <div className={tm.risky || unknownRisk(tm) ? 'text-amber-800' : 'text-emerald-800'}>
+                {unknownRisk(tm) ? copy.unknown : tm.risky
+                  ? tm.pop == null ? copy.radarRain : t('remind.riskyBody', { p: tm.pop })
+                  : copy.dry}
               </div>
             </div>
             <button

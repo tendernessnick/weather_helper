@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import type {
-  CalibrationInfo, Court, CourtScores, HourlyItem, LightningInfo,
+  CalibrationInfo, Court, CourtScores, LightningInfo,
   WeatherResponse,
 } from '../types';
 import NowcastStrip from '../components/NowcastStrip';
@@ -13,62 +13,13 @@ import SubscribeBox from '../components/SubscribeBox';
 import PersistenceCard from '../components/PersistenceCard';
 import CheckInCard from '../components/CheckInCard';
 import FeedbackSheet from '../components/FeedbackSheet';
+import FavoriteButton from '../components/FavoriteButton';
+import PlayPlanner from '../components/PlayPlanner';
 import Icon from '../components/Icon';
 import { comfortNote, courtName, districtName, hintLines, useLang } from '../i18n';
 import type { TKey } from '../i18n';
-
-/** Zone by the fused 0-6h value when present (same 30/60 thresholds the
- *  backend uses); otherwise fall back to the per-hour zone from the API. */
-function zoneOf(h: HourlyItem): 'go' | 'edge' | 'no' {
-  if (h.fused_pop !== undefined) {
-    return h.fused_pop > 60 ? 'no' : h.fused_pop > 30 ? 'edge' : 'go';
-  }
-  return h.zone ?? 'go';
-}
-
-/** Plain-language verdict for the next few hours, computed from zones. */
-function VerdictBanner({ weather }: { weather: WeatherResponse }) {
-  const { t } = useLang();
-  const hours = weather.hourly.slice(0, 6);
-  if (hours.length === 0) return null;
-
-  const worst = hours.reduce<string>((acc, h) => {
-    const z = zoneOf(h);
-    if (z === 'no' || acc === 'no') return 'no';
-    if (z === 'edge' || acc === 'edge') return 'edge';
-    return 'go';
-  }, 'go');
-  const worstHour = hours.find((h) => zoneOf(h) === worst);
-  const hhmm = worstHour ? new Date(worstHour.hour).getHours().toString().padStart(2, '0') + ':00' : '';
-  const pop = worstHour
-    ? (worstHour.fused_pop ?? worstHour.corrected_pop ?? worstHour.pop)
-    : 0;
-
-  const look = {
-    go: { tile: 'bg-[#34C759]', icon: 'ball' as const, text: 'text-[#1B7A3D]' },
-    edge: { tile: 'bg-[#FF9500]', icon: 'drizzle' as const, text: 'text-[#8A6100]' },
-    no: { tile: 'bg-[#FF3B30]', icon: 'storm' as const, text: 'text-[#B3261E]' },
-  }[worst] ?? {
-    tile: 'bg-[#34C759]', icon: 'ball' as const, text: 'text-[#1B7A3D]',
-  };
-
-  const sentence = worst === 'go'
-    ? t('verdict.go', { n: hours.length })
-    : worst === 'edge'
-      ? t('verdict.edge', { hhmm, pop })
-      : t('verdict.no', { hhmm, pop });
-
-  return (
-    <div className="mx-4 mt-4 flex items-center gap-3 rounded-[16px] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-white ${look.tile}`}>
-        <Icon name={look.icon} className="h-5 w-5" />
-      </span>
-      <p className={`text-[13px] font-semibold leading-relaxed ${look.text}`}>
-        {sentence}
-      </p>
-    </div>
-  );
-}
+import { detailCopy } from '../detail-copy';
+import { hkFormat } from '../utils/hkTime';
 
 /** Heat advisory when any of the next 6 hours is poor/severe comfort. */
 function ComfortBanner({ weather }: { weather: WeatherResponse }) {
@@ -77,7 +28,7 @@ function ComfortBanner({ weather }: { weather: WeatherResponse }) {
   const worst = hours.find((h) => h.comfort?.level === 'severe')
     ?? hours.find((h) => h.comfort?.level === 'poor');
   if (!worst?.comfort) return null;
-  const hh = new Date(worst.hour).getHours().toString().padStart(2, '0');
+  const hh = hkFormat(worst.hour, { hour: '2-digit', hourCycle: 'h23' });
   const severe = worst.comfort.level === 'severe';
   return (
     <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
@@ -129,13 +80,26 @@ export default function CourtDetail() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [fbOpen, setFbOpen] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') setReload((value) => value + 1); };
+    const timer = window.setInterval(refresh, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
     setError(null);
     setNotFound(false);
+    setRefreshing(true);
     Promise.all([
-      fetch(`/api/courts/${id}`).then((r) => {
+      fetch(`/api/courts/${encodeURIComponent(id)}`, { signal: controller.signal }).then((r) => {
         if (r.status === 404) throw new Error('NOT_FOUND');
         if (!r.ok) throw new Error(`request failed (${r.status})`);
         return r.json();
@@ -144,16 +108,20 @@ export default function CourtDetail() {
       api.courtCalibration(id).catch(() => null),
     ])
       .then(([courtData, weatherData, calib]) => {
+        if (cancelled) return;
         setCourt(courtData);
         setScores(courtData.scores);
         setWeather(weatherData);
         setCalibration(calib);
       })
       .catch((err) => {
+        if (cancelled) return;
         if (err instanceof Error && err.message === 'NOT_FOUND') setNotFound(true);
         else setError(String(err.message ?? err));
-      });
-  }, [id]);
+      })
+      .finally(() => { clearTimeout(timeout); if (!cancelled) setRefreshing(false); });
+    return () => { cancelled = true; clearTimeout(timeout); controller.abort(); };
+  }, [id, reload]);
 
   if (notFound) {
     return (
@@ -162,10 +130,14 @@ export default function CourtDetail() {
       </div>
     );
   }
-  if (error) {
-    return <div className="p-8 text-center text-sm text-[#FF3B30]">{error}</div>;
+  if (error && (!court || court.id !== id || !weather)) {
+    return <div role="alert" className="mx-4 mt-4 rounded-2xl bg-white p-6 text-center">
+      <h1 className="text-lg font-bold text-slate-900">{detailCopy(lang, 'detailFailed')}</h1>
+      <p className="mt-2 break-words text-[13px] text-slate-600">{error}</p>
+      <button type="button" onClick={() => setReload((value) => value + 1)} className="mt-4 min-h-11 rounded-xl bg-[#007AFF] px-5 text-sm font-semibold text-white">{detailCopy(lang, 'retry')}</button>
+    </div>;
   }
-  if (!court || !weather) {
+  if (!court || court.id !== id || !weather) {
     return <div className="p-8 text-center text-sm text-[#8E8E93]">{t('common.loading')}</div>;
   }
 
@@ -178,7 +150,10 @@ export default function CourtDetail() {
   return (
     <div>
       <section className="ios-card mx-4 mt-4 p-4">
-        <h1 className="text-[21px] font-bold tracking-tight">{courtName(court, lang)}</h1>
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="min-w-0 text-[21px] font-bold tracking-tight">{courtName(court, lang)}</h1>
+          <FavoriteButton courtId={court.id} />
+        </div>
         <p className="mt-0.5 text-[12px] text-[#8E8E93]">
           {lang === 'en' ? `${court.name_tc} · ${court.name_sc}` : `${court.name_tc} · ${court.name_en}`}
         </p>
@@ -216,7 +191,14 @@ export default function CourtDetail() {
         >
           {t('fb.entryCourt')}
         </button>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3">
+          <a href="/courts" className="text-[12px] font-medium text-[#007AFF]">← {t('detail.backList')}</a>
+          <button type="button" disabled={refreshing} onClick={() => setReload((value) => value + 1)} className="min-h-11 rounded-xl bg-slate-100 px-3 text-[12px] font-semibold text-slate-700 disabled:opacity-60">
+            {detailCopy(lang, refreshing ? 'refreshing' : 'refresh')}
+          </button>
+        </div>
       </section>
+      {error && <p role="alert" className="mx-4 mt-3 rounded-xl bg-amber-50 p-3 text-[13px] text-amber-900">{detailCopy(lang, 'refreshFailed')}</p>}
 
       {weather.warnings.length > 0 && (
         <div className="ios-card mx-4 mt-3 flex gap-3 p-3.5">
@@ -234,7 +216,7 @@ export default function CourtDetail() {
 
       {weather.lightning && <LightningBanner lightning={weather.lightning} />}
 
-      <VerdictBanner weather={weather} />
+      <PlayPlanner key={court.id} weather={weather} />
       <ComfortBanner weather={weather} />
 
       {microclimate && (
@@ -251,12 +233,12 @@ export default function CourtDetail() {
         </div>
       )}
 
-      <NowcastStrip steps={weather.nowcast.steps} fetchedAt={weather.nowcast.fetched_at} />
+      <NowcastStrip steps={weather.nowcast.steps} fetchedAt={weather.nowcast.fetched_at} freshness={weather.data_status?.nowcast} />
       {/* Reporting is the "I'm here right now" action: keep it right after the
           nowcast, before the long analytical charts, so participation is
           visible without scrolling. */}
       <ReportSheet court={court} />
-      <HourlyBars hourly={weather.hourly} />
+      <HourlyBars hourly={weather.hourly} freshness={weather.data_status?.hourly} radarFreshness={weather.data_status?.nowcast} />
       {calibration && calibration.basis && (() => {
         const deltas = calibration.mapping
           .map((m) => (m.official_pct - m.corrected * 100) / 100)

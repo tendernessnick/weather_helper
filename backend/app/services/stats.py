@@ -32,15 +32,18 @@ def brier_score(pairs: list[tuple[float, bool, float | None]]) -> float | None:
 def brier_skill_score(pairs: list[tuple[float, bool, float | None]]) -> float | None:
     """BSS = 1 - BS/BS_climatology. >0 means the forecast beats knowing only
     the climatological base rate - the honest null model."""
-    if not pairs:
+    # Both scores must refer to the same court-hours. Climate coverage can
+    # be partial during backfill; unrelated unpaired forecast errors cannot
+    # be divided by the smaller reference subset's score.
+    comparable = [(p, o, b) for p, o, b in pairs if b is not None]
+    if not comparable:
         return None
-    bs = brier_score(pairs)
+    bs = brier_score(comparable)
     bs_ref = sum((b - (1.0 if o else 0.0)) ** 2
-                 for _p, o, b in pairs if b is not None)
-    n_ref = sum(1 for _p, _o, b in pairs if b is not None)
-    if not n_ref or bs is None:
+                 for _p, o, b in comparable)
+    if bs is None:
         return None
-    bs_ref /= n_ref
+    bs_ref /= len(comparable)
     if bs_ref == 0:
         return None
     return 1 - bs / bs_ref
@@ -126,6 +129,11 @@ def recalibrate(pairs: list[tuple[float, bool, float | None]],
         return identity
 
     table = [b for b in reliability_table(pairs, bins) if b.n >= MIN_BIN_N]
+    if not table:
+        # Mixed wet/dry data can still leave every bin below MIN_BIN_N.
+        # There are then no reliable interpolation knots: preserve the raw
+        # forecast instead of returning a function that indexes an empty list.
+        return lambda p: p
 
     knots = sorted((b.mean_forecast, b.observed_freq) for b in table)
     # enforce monotonicity (isotonic-style pool-adjacent violation fix)
@@ -166,11 +174,12 @@ def peirce(hits: int, misses: int, false_alarms: int, correct_negatives: int) ->
     """Peirce Skill Score (true skill statistic): 1 = perfect, 0 = no better
     than chance, negative = worse."""
     obs_yes = hits + misses
-    fcst_yes = hits + false_alarms
-    n = obs_yes + false_alarms + correct_negatives
-    if obs_yes == 0 or fcst_yes == 0 or n == 0:
+    obs_no = false_alarms + correct_negatives
+    # TSS = hit rate - false-positive rate. Its denominators are observed
+    # wet/dry counts, not the number of positive forecasts.
+    if obs_yes == 0 or obs_no == 0:
         return None
-    return round((hits / obs_yes) - (false_alarms / (n - obs_yes)), 3)
+    return round((hits / obs_yes) - (false_alarms / obs_no), 3)
 
 
 def shrinkage(court_k: int, court_n: int, group_rate: float,

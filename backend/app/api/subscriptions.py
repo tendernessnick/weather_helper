@@ -117,6 +117,7 @@ def check_reminders(
             "court_name_en": court.name_en,
             "play_hhmm": sub.play_at.strftime("%H:%M"),
             "risky": risky,
+            "risk_status": "unknown" if risky is None else "rain" if risky else "dry",
             "pop": pop,
         })
     if reminders:
