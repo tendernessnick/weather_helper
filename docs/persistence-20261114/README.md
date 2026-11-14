@@ -8,6 +8,7 @@
 |---|---|
 | 最终停写快照 | 2026-11-14 15:28:53 UTC，473,357 行；AES-GCM 私有云副本、本机副本及 SQLite 完整性通过 |
 | 正式迁移 | 12 表所有列、原始 ID、香港时间与源快照逐值 SHA 一致；[完整迁移报告](history-import-verification.json) |
+| 历史内容复核 | 对照首个正式备份逐条检查 473,357 条原记录，原主键缺失 0、不可变内容差异 0；[内容复核](history-content-preservation.json) |
 | 首次上线 | `weather-helper-006` 通过 HTTP 写入 PG；历史行数未减少，气候排名与旧站完全一致；[切换检查](first-cutover-verification.json) |
 | 全新容器重部署 | `006 → 007` 重新从 PG 构建缓存，12 表行数未减少，并取得第 7 代写租约；[重部署检查](redeploy-verification.json) |
 | 自动备份 | 正式调度任务成功，备份 revision 130；独立下载 14,116,585 字节密文并完整恢复，12 表逐值 SHA 一致；[正式恢复演练](live-backup-restore.json) |
