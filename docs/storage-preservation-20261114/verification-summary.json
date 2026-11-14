@@ -1,0 +1,56 @@
+{
+  "snapshot_utc": "20261114T120554Z",
+  "verified_at_utc": "2026-11-14T12:46:49.611908+00:00",
+  "database_bytes": 131035136,
+  "database_sha256": "2d0b058902ba0992c0f8d63856d86138e4ea49cc3d9e1ba96b6257a055badbdf",
+  "ciphertext_sha256": "95068e1d9612a0db7870bf8cd9ee166f983fed739b267489e8197c0666aa17e1",
+  "integrity_check": [
+    "ok"
+  ],
+  "zip_crc_ok": true,
+  "aes_gcm_tag_ok": true,
+  "counts": {
+    "checkins": 0,
+    "climatology": 16416,
+    "courts": 57,
+    "feedback": 0,
+    "forecast_leads": 180374,
+    "forecast_snapshots": 47196,
+    "kv_cache": 60,
+    "nowcast_snapshots": 182229,
+    "observations": 44232,
+    "persistence": 684,
+    "push_subscriptions": 0,
+    "user_reports": 0
+  },
+  "time_ranges": {
+    "forecast_snapshots": [
+      "2026-10-13 12:00:00.000000",
+      "2026-11-16 23:00:00.000000"
+    ],
+    "observations": [
+      "2026-10-13 12:00:00.000000",
+      "2026-11-14 19:00:00.000000"
+    ],
+    "nowcast_snapshots": [
+      "2026-10-13 11:33:13.639853",
+      "2026-11-14 19:59:37.938228"
+    ],
+    "forecast_leads": [
+      "2026-10-13 12:00:00.000000",
+      "2026-11-16 17:00:00.000000"
+    ]
+  },
+  "application_redeployed": false,
+  "restore_drill": {
+    "integrity_check": "ok",
+    "row_counts_match": true
+  },
+  "cloud_copy": {
+    "bucket_private": true,
+    "encrypted_only": true,
+    "authenticated_download_http": 200,
+    "anonymous_request_http": 404,
+    "keys_uploaded": false
+  }
+}
