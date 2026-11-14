@@ -318,6 +318,9 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 
 ### 部署到腾讯云 CloudBase（当前使用）
 
+2026-11-14已从GitHub `master`发布为`weather-helper-004`并恢复历史数据，见[发布验收](docs/deployment-20261114/README.md)。当前Git推送自动发布已暂停，待数据库持久化完成后再启用。
+
+
 2026-10 起从 Railway 迁到 CloudBase 云托管（CloudRun 容器型）。选容器型而不是云函数，
 是因为应用依赖**进程内常驻调度器**（8 个定时抓取/推送任务）和 Web Push 长驻服务，
 缩容到 0 即停摆，只有常驻实例能承载。
