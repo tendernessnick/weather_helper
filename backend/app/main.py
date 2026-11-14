@@ -15,7 +15,7 @@ from .api import (admin, best, checkins, courts, feedback, map as map_api,
 from .config import settings
 from .db import SessionLocal, configure_http_persistence, get_persistence, init_db
 from .diagnostics import db_state
-from .persistence_http import PersistenceUnavailable
+from .persistence_http import PersistenceUnavailable, detect_release_generation
 from .scheduler import run_job_exclusive, scheduler
 from .services.lcsd import ensure_courts
 
@@ -89,6 +89,21 @@ async def persistence_unavailable(_request, _exc):
     return JSONResponse(status_code=503, headers={"Retry-After": "5"},
                         content={"detail": "数据库正在同步或暂时不可用，请稍后重试。"})
 
+
+@app.middleware("http")
+async def persistence_ready(request, call_next):
+    # Statistics also have in-process TTL caches. Fence those endpoints before
+    # their handlers can return an old cached value without touching SQL.
+    if (request.url.path.startswith("/api/")
+            and request.url.path not in {"/api/health", "/api/instance"}):
+        persistence = get_persistence()
+        if persistence is not None:
+            try:
+                persistence.ensure_valid()
+            except PersistenceUnavailable as exc:
+                return await persistence_unavailable(request, exc)
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
@@ -119,6 +134,13 @@ def health():
     if persistence is not None:
         out["persistence"] = state
     return out
+
+
+@app.get("/api/instance")
+async def instance_identity():
+    """Identify the version receiving traffic without reading the query cache."""
+    return JSONResponse({"generation": detect_release_generation()},
+                        headers={"Cache-Control": "no-store"})
 
 
 # Serve the built frontend when present (single-service deployment).

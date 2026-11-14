@@ -57,6 +57,8 @@ class Settings:
         "PERSISTENCE_API_URL", ""))
     persistence_api_key: str = field(default_factory=lambda: os.environ.get(
         "PERSISTENCE_API_KEY", ""), repr=False)
+    persistence_traffic_url: str = field(default_factory=lambda: os.environ.get(
+        "PERSISTENCE_TRAFFIC_URL", ""))
     persistence_lease_seconds: int = field(default_factory=lambda: _env_int(
         "PERSISTENCE_LEASE_SECONDS", 90))
     scheduler_enabled: bool = field(default_factory=lambda: os.environ.get(

@@ -16,7 +16,8 @@ from app.models import Court, KvCache, Observation
 from app.persistence_http import (Coordinator, HttpPersistenceSession,
                                   HttpRemoteStore, PersistenceReadOnly,
                                   PersistenceUnavailable, PRIMARY_KEYS,
-                                  RemoteStoreError, TABLES, _batches)
+                                  RemoteStoreError, TABLES, _batches,
+                                  detect_release_generation)
 
 
 class MemoryAuthority:
@@ -80,6 +81,34 @@ class MemoryAuthority:
         if self.lost_commit_response:
             raise RemoteStoreError("commit response lost")
         return result
+
+
+class GenerationAuthority(MemoryAuthority):
+    def __init__(self):
+        super().__init__()
+        self.generation = 0
+        self.lease_calls = []
+
+    def acquire_lease(self, owner, ttl_seconds=90, *, generation=0, allow_takeover=False):
+        self.lease_calls.append(("acquire", generation, allow_takeover))
+        if generation < self.generation:
+            acquired = False
+        elif (self.owner is None or self.owner == owner
+              or (generation > self.generation and allow_takeover)):
+            self.owner, self.generation, acquired = owner, generation, True
+        else:
+            acquired = False
+        return {"acquired": acquired, "revision": self.revision,
+                "release_generation": self.generation}
+
+    def heartbeat(self, owner, ttl_seconds=90, *, generation=0, allow_takeover=False):
+        return {"acquired": owner == self.owner and generation == self.generation,
+                "revision": self.revision, "release_generation": self.generation}
+
+    def release_lease(self, owner, *, generation=0):
+        if self.owner == owner and generation == self.generation:
+            self.owner = None
+        return {"released": self.owner is None}
 
 
 @pytest.fixture
@@ -405,3 +434,111 @@ def test_install_unbootstrapped_cache_registers_guard_without_creating_tables(tm
         assert conn.execute(text("SELECT COUNT(*) FROM courts")).scalar() == 0
     coordinator.stop()
     engine.dispose()
+
+
+@pytest.mark.parametrize("hostname,generation", [
+    ("weather-helper-007-abc-def", 7), ("weather-helper-123", 123),
+    ("weather-helper-0-abc", 0), ("some-other-service-007", 0),
+    ("weather-helper-malformed", 0),
+])
+def test_detects_platform_release_generation(monkeypatch, hostname, generation):
+    monkeypatch.delenv("PERSISTENCE_RELEASE_GENERATION", raising=False)
+    monkeypatch.setattr("app.persistence_http.socket.gethostname", lambda: hostname)
+    assert detect_release_generation() == generation
+
+
+def test_release_generation_test_override_fails_closed_on_invalid(monkeypatch):
+    monkeypatch.setenv("PERSISTENCE_RELEASE_GENERATION", "17")
+    assert detect_release_generation() == 17
+    for invalid in ("unknown", "-1", "2147483648"):
+        monkeypatch.setenv("PERSISTENCE_RELEASE_GENERATION", invalid)
+        assert detect_release_generation() == 0
+
+
+def test_only_current_public_route_can_take_over_old_running_version(tmp_path):
+    authority = GenerationAuthority()
+    authority.owner = "still-running-old-version"
+    routed = {"generation": 6}
+    requests = []
+
+    def traffic(request):
+        requests.append(request)
+        return httpx.Response(200, json=routed)
+
+    with httpx.Client(transport=httpx.MockTransport(traffic)) as client:
+        coordinator = Coordinator(
+            authority, tmp_path / "new-version.db", Base.metadata,
+            owner="new-version", traffic_url="https://example.invalid/api/instance",
+            release_generation=7, traffic_client=client)
+        coordinator.bootstrap_cache()
+        # A 0% canary sees the old 100% public route and must leave its lease alone.
+        assert not coordinator.try_acquire_writer()
+        assert authority.owner == "still-running-old-version"
+        assert not authority.lease_calls
+        routed["generation"] = 7
+        assert coordinator.try_acquire_writer()
+        assert coordinator.can_write()
+        assert authority.owner == "new-version"
+        assert authority.generation == 7
+        assert authority.lease_calls == [("acquire", 7, True)]
+        assert not authority.heartbeat("still-running-old-version")["acquired"]
+        assert not authority.acquire_lease("lower-version", generation=6, allow_takeover=True)["acquired"]
+        state = coordinator.status()
+        assert state["release_generation"] == state["traffic_generation"] == 7
+        assert state["authority_release_generation"] == 7
+        assert state["traffic_confirmed"]
+        # Public route changes cancel new local writes immediately.
+        routed["generation"] = 8
+        assert not coordinator._confirm_traffic()
+        assert not coordinator.can_write()
+        assert all("no-store" in request.headers["Cache-Control"] for request in requests)
+        assert all("_persistence_probe" in request.url.params for request in requests)
+        assert all("Authorization" not in request.headers for request in requests)
+        assert len({str(request.url) for request in requests}) == len(requests)
+
+
+@pytest.mark.parametrize("response", [
+    httpx.Response(503), httpx.Response(200, json={}),
+    httpx.Response(200, json={"generation": "7"}),
+    httpx.Response(200, json={"generation": True}),
+])
+def test_route_probe_failure_never_acquires_or_renews(response, tmp_path):
+    authority = GenerationAuthority()
+    with httpx.Client(transport=httpx.MockTransport(lambda _: response)) as client:
+        coordinator = Coordinator(authority, tmp_path / "cache.db", Base.metadata,
+                                  release_generation=7, traffic_url="https://example.invalid/api/instance",
+                                  traffic_client=client)
+        coordinator._leader, coordinator._lease_until, coordinator.valid = True, float("inf"), True
+        assert not coordinator.try_acquire_writer()
+        assert not coordinator.can_write()
+        assert not authority.lease_calls
+        assert coordinator.valid  # a valid cache can remain read-only
+
+
+def test_unknown_own_generation_never_uses_a_routed_generation_as_its_identity(tmp_path):
+    authority = GenerationAuthority()
+    with httpx.Client(transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"generation": 7}))) as client:
+        coordinator = Coordinator(authority, tmp_path / "cache.db", Base.metadata,
+                                  release_generation=0, traffic_url="https://example.invalid/api/instance",
+                                  traffic_client=client)
+        assert not coordinator.try_acquire_writer()
+        assert not authority.lease_calls
+
+
+def test_http_generation_fields_and_release_are_sent_only_explicitly():
+    received = []
+
+    def handle(request):
+        received.append(json.loads(request.content)["request"])
+        return httpx.Response(200, json={"acquired": True})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        remote = HttpRemoteStore("https://example.invalid", "inert", client=client)
+        remote.acquire_lease("owner")
+        remote.acquire_lease("owner", generation=7, allow_takeover=True)
+        remote.heartbeat("owner", generation=7, allow_takeover=True)
+        remote.release_lease("owner", generation=7)
+    assert "generation" not in received[0]
+    assert received[1]["generation"] == received[2]["generation"] == received[3]["generation"] == 7
+    assert received[1]["allow_takeover"] is True

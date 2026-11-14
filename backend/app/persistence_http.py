@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import socket
 import threading
 import time
 import uuid
@@ -30,6 +31,20 @@ TABLES = (
 PRIMARY_KEYS = {name: "key" if name == "kv_cache" else "id" for name in TABLES}
 _WRITE_SQL = re.compile(r"^\s*(?:INSERT|UPDATE|DELETE|REPLACE)\b", re.I)
 _WITH_SQL = re.compile(r"^\s*WITH\b", re.I)
+
+
+def detect_release_generation() -> int:
+    """CloudBase names pods weather-helper-NNN-<replicaset>-<pod>.
+
+    The optional override exists for isolated tests, not as a shared production
+    setting: each actual release must retain its own monotonically increasing
+    generation so a zero-traffic old pod cannot take its lease back.
+    """
+    override = os.environ.get("PERSISTENCE_RELEASE_GENERATION")
+    if override is not None:
+        return int(override) if override.isdigit() and int(override) <= 2_147_483_647 else 0
+    match = re.match(r"^weather-helper-(\d+)(?:-|$)", socket.gethostname().lower())
+    return int(match[1]) if match and int(match[1]) <= 2_147_483_647 else 0
 
 
 class PersistenceUnavailable(RuntimeError):
@@ -80,14 +95,21 @@ class HttpRemoteStore:
         return self.request("snapshot", table=table, after=after_key, limit=limit,
                             revision=expected_revision)
 
-    def acquire_lease(self, owner: str, ttl_seconds: int = 90) -> dict:
-        return self.request("lease_acquire", owner=owner, ttl_seconds=ttl_seconds)
+    def acquire_lease(self, owner: str, ttl_seconds: int = 90, *,
+                      generation: int | None = None, allow_takeover: bool = False) -> dict:
+        fields = {} if generation is None else {"generation": generation,
+                                                "allow_takeover": allow_takeover}
+        return self.request("lease_acquire", owner=owner, ttl_seconds=ttl_seconds, **fields)
 
-    def heartbeat(self, owner: str, ttl_seconds: int = 90) -> dict:
-        return self.request("heartbeat", owner=owner, ttl_seconds=ttl_seconds)
+    def heartbeat(self, owner: str, ttl_seconds: int = 90, *,
+                  generation: int | None = None, allow_takeover: bool = False) -> dict:
+        fields = {} if generation is None else {"generation": generation,
+                                                "allow_takeover": allow_takeover}
+        return self.request("heartbeat", owner=owner, ttl_seconds=ttl_seconds, **fields)
 
-    def release_lease(self, owner: str) -> dict:
-        return self.request("lease_release", owner=owner)
+    def release_lease(self, owner: str, *, generation: int | None = None) -> dict:
+        fields = {} if generation is None else {"generation": generation}
+        return self.request("lease_release", owner=owner, **fields)
 
     def stage(self, owner: str, expected_revision: int, tx_id: str,
               batch_index: int, changes: list[dict]) -> dict:
@@ -168,13 +190,25 @@ def _batches(changes: list[dict], max_rows: int = 400,
 class Coordinator:
     def __init__(self, remote: HttpRemoteStore, cache_path: str | Path, metadata,
                  *, owner: str | None = None, lease_seconds: int = 90,
-                 page_size: int = 2000):
+                 page_size: int = 2000, traffic_url: str = "",
+                 release_generation: int | None = None,
+                 traffic_client: httpx.Client | None = None):
         self.remote = remote
         self.cache_path = Path(cache_path).resolve()
         self.metadata = metadata
         self.owner = owner or str(uuid.uuid4())
         self.lease_seconds = lease_seconds
         self.page_size = min(max(page_size, 1), 5000)
+        self.release_generation = (detect_release_generation() if release_generation is None
+                                   else release_generation)
+        if type(self.release_generation) is not int or not 0 <= self.release_generation <= 2_147_483_647:
+            raise ValueError("release generation must be a nonnegative 32-bit integer")
+        self._traffic_url = traffic_url
+        self._traffic_client = (traffic_client or httpx.Client(timeout=5, follow_redirects=False)
+                                if traffic_url else None)
+        self._traffic_generation = None
+        self._traffic_until = 0.0
+        self._authority_generation = None
         # A plain lock deliberately allows a FastAPI dependency's cleanup thread
         # to release a lock acquired by its handler thread. Session info prevents
         # recursive acquisition for multiple writes within one transaction.
@@ -197,7 +231,11 @@ class Coordinator:
         with self._state_lock:
             return {"backend": "cloudbase_http", "revision": self.revision,
                     "cache_valid": self.valid, "rebuilding": self.rebuilding,
-                    "leader": self.can_write(), "reason": self._reason}
+                    "leader": self.can_write(), "reason": self._reason,
+                    "release_generation": self.release_generation,
+                    "traffic_generation": self._traffic_generation,
+                    "traffic_confirmed": self._traffic_confirmed(),
+                    "authority_release_generation": self._authority_generation}
 
     def ensure_valid(self) -> None:
         if not self.valid or self.rebuilding:
@@ -205,7 +243,46 @@ class Coordinator:
 
     def can_write(self) -> bool:
         return (self.valid and not self.rebuilding and self._leader
-                and time.monotonic() < self._lease_until)
+                and time.monotonic() < self._lease_until
+                and self._traffic_confirmed())
+
+    def _traffic_confirmed(self) -> bool:
+        return (not self._traffic_url or (self.release_generation > 0
+                and self._traffic_generation == self.release_generation
+                and time.monotonic() < self._traffic_until))
+
+    def _confirm_traffic(self) -> bool:
+        """A hidden/zero-traffic revision cannot promote itself merely by booting."""
+        if not self._traffic_url:
+            return True
+        generation = None
+        if self.release_generation > 0:
+            try:
+                response = self._traffic_client.get(
+                    self._traffic_url,
+                    params={"_persistence_probe": str(time.monotonic_ns())},
+                    headers={"Cache-Control": "no-store, no-cache", "Pragma": "no-cache"},
+                    timeout=5, follow_redirects=False)
+                if response.status_code == 200:
+                    result = response.json()
+                    value = result.get("generation") if isinstance(result, dict) else None
+                    if type(value) is int and value >= 0:
+                        generation = value
+            except Exception:
+                pass  # no URL, server response or credential enters diagnostics
+        confirmed = generation == self.release_generation and self.release_generation > 0
+        with self._state_lock:
+            self._traffic_generation = generation
+            self._traffic_until = time.monotonic() + 8 if confirmed else 0
+            if not confirmed:
+                self._leader = False
+                self._lease_until = 0
+        return confirmed
+
+    def _lease_fields(self) -> dict:
+        # Unconfigured local/dev deployments keep the original RPC protocol.
+        return ({"generation": self.release_generation, "allow_takeover": True}
+                if self._traffic_url else {})
 
     def invalidate(self, reason: str) -> None:
         with self._state_lock:
@@ -223,13 +300,16 @@ class Coordinator:
         acquired = result.get("acquired") is True
         with self._state_lock:
             self._leader = acquired
+            self._authority_generation = result.get("release_generation")
             self._lease_until = ((requested_at or time.monotonic()) + self.lease_seconds - 5
                                  if acquired else 0)
         return acquired
 
-    def try_acquire_writer(self) -> bool:
+    def try_acquire_writer(self, *, traffic_checked: bool = False) -> bool:
+        if not traffic_checked and not self._confirm_traffic():
+            return False
         requested_at = time.monotonic()
-        result = self.remote.acquire_lease(self.owner, self.lease_seconds)
+        result = self.remote.acquire_lease(self.owner, self.lease_seconds, **self._lease_fields())
         acquired = self._record_lease(result, requested_at)
         if result.get("revision") != self.revision:
             self.invalidate("remote_revision_changed")
@@ -475,18 +555,20 @@ class Coordinator:
         last_heartbeat = 0.0
         while not self._stop.wait(5):
             try:
+                if not self._confirm_traffic():
+                    continue
                 if self._leader and time.monotonic() - last_heartbeat < 20:
                     continue
                 if self._leader:
                     requested_at = time.monotonic()
-                    result = self.remote.heartbeat(self.owner, self.lease_seconds)
+                    result = self.remote.heartbeat(self.owner, self.lease_seconds, **self._lease_fields())
                     self._record_lease(result, requested_at)
                     last_heartbeat = time.monotonic()
                     # A heartbeat may overlap the short interval between the
                     # authoritative commit and local commit. Its revision must
                     # not fence our own in-flight successful transaction.
                 else:
-                    self.try_acquire_writer()
+                    self.try_acquire_writer(traffic_checked=True)
                 if self._stop.is_set():
                     break
                 if (self._leader and not self.valid and not self.rebuilding and
@@ -516,7 +598,8 @@ class Coordinator:
         if self.write_lock.acquire(blocking=False):
             try:
                 if self._leader:
-                    self.remote.release_lease(self.owner)
+                    fields = {"generation": self.release_generation} if self._traffic_url else {}
+                    self.remote.release_lease(self.owner, **fields)
                 self._leader = False
             finally:
                 self.write_lock.release()

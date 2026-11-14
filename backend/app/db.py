@@ -99,7 +99,8 @@ def configure_http_persistence(*, bootstrap_sync: bool = False):
     from .persistence_http import Coordinator, HttpPersistenceSession, HttpRemoteStore
     remote = HttpRemoteStore(settings.persistence_api_url, settings.persistence_api_key)
     coordinator = Coordinator(remote, engine.url.database, Base.metadata,
-                              lease_seconds=getattr(settings, "persistence_lease_seconds", 90))
+                              lease_seconds=getattr(settings, "persistence_lease_seconds", 90),
+                              traffic_url=getattr(settings, "persistence_traffic_url", ""))
     # Existing cache files are disposable and never trusted across processes.
     # Guard installation performs no schema/data SQL before bootstrap succeeds.
     engine.dispose()

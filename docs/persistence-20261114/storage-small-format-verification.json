@@ -1,0 +1,20 @@
+{
+  "scenario": "real_storage_new_format_empty_schema_fixture",
+  "not_live_pg_backup": true,
+  "signed_upload_verified": true,
+  "authenticated_readback_verified": true,
+  "GCM_new_format_with_AAD_verified": true,
+  "private_bucket_verified": true,
+  "receipt_listing_verified": true,
+  "anonymous_HEAD_status": 404,
+  "elapsed_seconds": 20.67,
+  "receipt": {
+    "format": "weather-pg-http-v1",
+    "created_at": "2026-11-14T15:31:21+00:00",
+    "cipher_sha256": "0166d18abc5dddd48d446434e261228ce7693e44f16859211554bc7bdb6c79af",
+    "cipher_bytes": 4418,
+    "revision": 0,
+    "retention_deleted": 0
+  },
+  "all_twelve_tables_empty_fixture": true
+}

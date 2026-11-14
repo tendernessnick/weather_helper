@@ -59,3 +59,19 @@ def test_health_during_handover_does_not_query_invalid_cache(monkeypatch):
     monkeypatch.setattr(main, "db_state", forbidden)
     assert main.health()["persistence"] == state
     assert main.health()["db"]["cache_state"] == "rebuilding"
+
+
+def test_cached_statistics_are_fenced_during_rebuild(monkeypatch):
+    def invalid():
+        raise PersistenceUnavailable("rebuilding")
+    state = {"cache_valid": False, "reason": "rebuilding", "leader": False}
+    monkeypatch.setattr(main, "get_persistence", lambda: SimpleNamespace(
+        ensure_valid=invalid, status=lambda: state))
+    monkeypatch.setattr(main, "detect_release_generation", lambda: 7)
+    client = TestClient(main.app)
+    assert client.get("/api/stats/overview").status_code == 503
+    assert client.get("/api/health").status_code == 200
+    identity = client.get("/api/instance")
+    assert identity.status_code == 200
+    assert identity.json() == {"generation": 7}
+    assert identity.headers["Cache-Control"] == "no-store"

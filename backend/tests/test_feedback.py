@@ -77,12 +77,15 @@ def test_cooldown_blocks_second(db):
 
 
 def test_daily_limit(db, monkeypatch):
+    from app.api import feedback as feedback_api
+    now = datetime(2026, 11, 15, 12)
+    monkeypatch.setattr(feedback_api, "hk_now", lambda: now)
     monkeypatch.setattr(settings, "feedback_daily_limit", 2)
     for _ in range(2):
         _submit(db)
         # Backdate past the cooldown so the daily cap is what trips.
         db.query(Feedback).update(
-            {"created_at": hk(datetime.now(HK_TZ)) - timedelta(hours=1)})
+            {"created_at": now - timedelta(hours=1)})
         db.commit()
     with pytest.raises(HTTPException) as e:
         _submit(db)

@@ -88,3 +88,33 @@ def test_full_twelve_table_rebuild_and_real_rpc_commit(rpc, records, snapshot, t
         coordinator.stop()
         cache.dispose()
         remote._client.close()
+
+
+def test_routed_generation_client_takes_over_and_fences_old_rpc_owner(rpc, tmp_path):
+    call, _, _ = rpc
+    old_owner = str(uuid.uuid4())
+    assert call({"action": "lease_acquire", "owner": old_owner})["acquired"]
+    routed = {"generation": 6}
+    remote = _remote(call)
+    traffic = httpx.Client(transport=httpx.MockTransport(
+        lambda _: httpx.Response(200, json=routed)))
+    coordinator = Coordinator(remote, tmp_path / "routed-cache.db", Base.metadata,
+                              release_generation=7, traffic_url="https://local-test.invalid/api/instance",
+                              traffic_client=traffic)
+    try:
+        coordinator.bootstrap_cache()
+        assert not coordinator.try_acquire_writer()
+        assert call({"action": "heartbeat", "owner": old_owner})["acquired"]
+        routed["generation"] = 7
+        assert coordinator.try_acquire_writer()
+        assert coordinator.can_write()
+        assert not call({"action": "heartbeat", "owner": old_owner})["acquired"]
+        assert remote.manifest()["release_generation"] == 7
+        coordinator.stop()
+        # Releasing the active owner never lowers the database's generation.
+        assert not call({"action": "lease_acquire", "owner": old_owner})["acquired"]
+        assert remote.manifest()["release_generation"] == 7
+    finally:
+        coordinator.stop()
+        traffic.close()
+        remote._client.close()

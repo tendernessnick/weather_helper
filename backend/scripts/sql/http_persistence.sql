@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS weather_helper._state (
     owner uuid,
     expires_at timestamptz
 );
+ALTER TABLE weather_helper._state ADD COLUMN IF NOT EXISTS generation bigint NOT NULL DEFAULT 0 CHECK (generation >= 0);
 INSERT INTO weather_helper._state(singleton) VALUES (true) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS weather_helper._transactions (
     tx_id text PRIMARY KEY,
@@ -368,6 +369,9 @@ DECLARE
     tx text;
     expected bigint;
     ttl integer;
+    requested_generation bigint := 0;
+    allow_takeover boolean := false;
+    lease_allowed boolean;
     batch integer;
     batch_total integer;
     state_row weather_helper._state%ROWTYPE;
@@ -406,7 +410,8 @@ BEGIN
             SELECT * INTO import_row FROM weather_helper._imports WHERE singleton;
             RETURN jsonb_build_object('revision',state_row.revision,'schema_version',1,'tables',table_manifest,
                 'import_in_progress',coalesce(NOT import_row.completed,false),
-                'import_source_sha256',import_row.source_sha256);
+                'import_source_sha256',import_row.source_sha256,
+                'release_generation',state_row.generation);
         END IF;
         IF jsonb_typeof(request->'revision') IS DISTINCT FROM 'number'
            OR (request->>'revision') !~ '^[0-9]+$' THEN
@@ -452,29 +457,59 @@ BEGIN
     owner_id := (request->>'owner')::uuid;
     SELECT * INTO STRICT state_row FROM weather_helper._state WHERE singleton FOR UPDATE;
     SELECT * INTO import_row FROM weather_helper._imports WHERE singleton;
+    IF action_name IN ('lease_acquire','heartbeat','lease_release') THEN
+        IF request ? 'generation' THEN
+            IF jsonb_typeof(request->'generation') IS DISTINCT FROM 'number'
+               OR request->>'generation' !~ '^[0-9]+$'
+               OR (request->>'generation')::numeric > 9223372036854775807 THEN
+                RAISE EXCEPTION 'generation must be a nonnegative 64-bit integer' USING ERRCODE='22023';
+            END IF;
+            requested_generation := (request->>'generation')::bigint;
+        END IF;
+        IF request ? 'allow_takeover' THEN
+            IF jsonb_typeof(request->'allow_takeover') IS DISTINCT FROM 'boolean' THEN
+                RAISE EXCEPTION 'allow_takeover must be a boolean' USING ERRCODE='22023';
+            END IF;
+            allow_takeover := (request->>'allow_takeover')::boolean;
+        END IF;
+    END IF;
     IF action_name IN ('lease_acquire','heartbeat') THEN
         ttl := coalesce((request->>'ttl_seconds')::integer,90);
         IF ttl < 15 OR ttl > 300 THEN RAISE EXCEPTION 'lease TTL must be 15..300 seconds' USING ERRCODE='22023'; END IF;
         IF import_row.singleton IS NOT NULL AND NOT import_row.completed AND import_row.owner<>owner_id THEN
-            RETURN jsonb_build_object('acquired',false,'revision',state_row.revision,'expires_at',state_row.expires_at);
+            RETURN jsonb_build_object('acquired',false,'revision',state_row.revision,'expires_at',state_row.expires_at,
+                'release_generation',state_row.generation);
         END IF;
-        IF (state_row.owner=owner_id AND state_row.expires_at>clock_timestamp())
-           OR (action_name='lease_acquire' AND (state_row.owner IS NULL OR state_row.expires_at<=clock_timestamp())) THEN
-            UPDATE weather_helper._state SET owner=owner_id,expires_at=clock_timestamp()+make_interval(secs=>ttl)
+        -- Generations never go backwards, including after expiry or release.
+        -- An inactive candidate cannot steal a valid lease without the explicit
+        -- flag that its client sends only after checking public traffic routing.
+        lease_allowed := requested_generation>=state_row.generation AND (
+            (requested_generation=state_row.generation AND state_row.owner=owner_id
+                AND state_row.expires_at>clock_timestamp())
+            OR (action_name='lease_acquire' AND (
+                state_row.owner IS NULL OR state_row.expires_at<=clock_timestamp()
+                OR (requested_generation>state_row.generation AND allow_takeover)
+            ))
+        );
+        IF lease_allowed THEN
+            UPDATE weather_helper._state SET owner=owner_id,generation=requested_generation,
+                expires_at=clock_timestamp()+make_interval(secs=>ttl)
                 WHERE singleton RETURNING * INTO state_row;
             -- Fragments abandoned by a previous instance cannot be committed
             -- under the new owner. Committed transaction IDs remain durable.
             DELETE FROM weather_helper._staging WHERE owner<>owner_id;
-            RETURN jsonb_build_object('acquired',true,'revision',state_row.revision,'expires_at',state_row.expires_at);
+            RETURN jsonb_build_object('acquired',true,'revision',state_row.revision,'expires_at',state_row.expires_at,
+                'release_generation',state_row.generation);
         END IF;
-        RETURN jsonb_build_object('acquired',false,'revision',state_row.revision,'expires_at',state_row.expires_at);
+        RETURN jsonb_build_object('acquired',false,'revision',state_row.revision,'expires_at',state_row.expires_at,
+            'release_generation',state_row.generation);
     END IF;
     IF action_name='lease_release' THEN
-        IF state_row.owner=owner_id THEN
+        IF state_row.owner=owner_id AND state_row.generation=requested_generation THEN
             UPDATE weather_helper._state SET owner=NULL,expires_at=NULL WHERE singleton;
-            RETURN jsonb_build_object('released',true,'revision',state_row.revision);
+            RETURN jsonb_build_object('released',true,'revision',state_row.revision,'release_generation',state_row.generation);
         END IF;
-        RETURN jsonb_build_object('released',false,'revision',state_row.revision);
+        RETURN jsonb_build_object('released',false,'revision',state_row.revision,'release_generation',state_row.generation);
     END IF;
 
     IF import_row.singleton IS NOT NULL AND NOT import_row.completed AND import_row.owner<>owner_id THEN

@@ -1,0 +1,27 @@
+{
+  "scenario": "cloud_side_signed_large_upload_authenticated_download",
+  "not_final_cutover": true,
+  "cipher_sha256": "937c058f1f05a075c3a16350f6f98eb827093acd9b0f94e89a595b4f6eddd96f",
+  "cipher_bytes": 14127579,
+  "database_sha256": "1cd3aeb72b0cc0de56fd24afabf6f8a8e5fb25c27c6018e93fbdb4dd1290efab",
+  "download_seconds": 28.29,
+  "total_seconds": 36.97,
+  "AES_GCM": "verified_legacy_without_AAD",
+  "zip_CRC": "verified",
+  "sqlite_integrity": "ok",
+  "counts": {
+    "checkins": 0,
+    "climatology": 16416,
+    "courts": 57,
+    "feedback": 0,
+    "forecast_leads": 181571,
+    "forecast_snapshots": 47196,
+    "kv_cache": 60,
+    "nowcast_snapshots": 182913,
+    "observations": 44460,
+    "persistence": 684,
+    "push_subscriptions": 0,
+    "user_reports": 0
+  },
+  "does_not_prove_final_cutover_or_automatic_backup": true
+}
