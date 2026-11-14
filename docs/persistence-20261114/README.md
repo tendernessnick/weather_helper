@@ -26,3 +26,9 @@
 - 新容器需要短暂重建缓存。`/api/health` 报告同步状态，期间业务请求可能返回可重试的 503；完成后 `cache_valid`、`leader` 和 `traffic_confirmed` 应为 `true`。
 
 详细部署与回退约束见 [HTTP 持久化说明](../PERSISTENCE_HTTP.md)，备份配置与独立恢复命令见 [备份说明](../PERSISTENCE_BACKUPS.md)。备份标签 `weather-helper-before-persistence-20261114` 保留改造前的代码状态。
+
+## 自动发布维护
+
+CloudBase 自动发布由独立流水线管理。若 GitHub 回调被删除或签名配对失效，须在 CloudBase 关闭并保存自动部署，再重新开启，由平台生成配对密钥；只重新部署相同仓库不会重建已有流水线的回调。
+
+修改 GitHub 回调的单个配置项应使用 `PATCH /repos/{owner}/{repo}/hooks/{hook_id}/config`。直接替换整个 webhook 的 `config` 而未提供原密钥，会清除签名密钥。当前回调使用 HTTPS 和证书验证，密钥只由平台及 GitHub 保存，不纳入仓库。维护接口的区别见 [GitHub 官方说明](https://docs.github.com/en/rest/repos/webhooks#update-a-repository-webhook)。
