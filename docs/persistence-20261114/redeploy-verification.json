@@ -1,0 +1,29 @@
+{
+  "verified_at_utc": "2026-11-14T16:23:37.959929+00:00",
+  "old_version": "weather-helper-006",
+  "new_version": "weather-helper-007",
+  "source_commit": "21a4845e0c15da2efbc0f8dba88a0510c5bf9322",
+  "before_revision": 130,
+  "after_revision": 134,
+  "all_twelve_counts_preserved": true,
+  "all_twelve_counts_exact": false,
+  "new_cache_created_at": "2026-11-14T16:21:45",
+  "old_cache_created_at": "2026-11-14T15:48:08",
+  "database_lease_generation": 7,
+  "traffic_generation": 7,
+  "writer_lease_confirmed": true,
+  "table_counts": {
+    "courts": 57,
+    "forecast_snapshots": 47196,
+    "observations": 44460,
+    "nowcast_snapshots": 183027,
+    "forecast_leads": 181571,
+    "climatology_cells": 16416,
+    "persistence": 684,
+    "kv_cache": 60,
+    "user_reports_total": 0,
+    "checkins": 0,
+    "push_subscriptions": 0,
+    "feedback": 0
+  }
+}
