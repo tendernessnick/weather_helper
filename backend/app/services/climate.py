@@ -143,7 +143,7 @@ class Aggregates:
                     ok = self.surv_ok.setdefault(month, {})
                     ok[L] = ok.get(L, 0) + 1
 
-    def save(self, db: Session, court_id: str) -> None:
+    def save(self, db: Session, court_id: str, *, commit: bool = True) -> None:
         for (month, hour), (samples, rain_count) in self.clim.items():
             row = db.query(Climatology).filter(
                 Climatology.court_id == court_id,
@@ -176,7 +176,8 @@ class Aggregates:
                 surv[str(L)] = surv.get(str(L), 0) + ok
             surv["_base"] = base
             row.survival_json = json.dumps(surv)
-        db.commit()
+        if commit:
+            db.commit()
 
 
 def backfill_court(db: Session, court: Court) -> int:
@@ -187,7 +188,9 @@ def backfill_court(db: Session, court: Court) -> int:
     more likely to 429 than one big one. Progress is per court.
     """
     row = db.get(KvCache, _last_key(court.id))
-    start = _parse_month(row.value_json) if row else BACKFILL_START
+    # Progress records the last *completed* month. Starting there again would
+    # add its samples every day and corrupt the long-term aggregates.
+    start = _next_month(*_parse_month(row.value_json)) if row else BACKFILL_START
     now = hk_now()
     # strictly the previous month: the current one is still accumulating in
     # the ERA5 archive and a partial fetch would be frozen as "done" forever
@@ -204,7 +207,9 @@ def backfill_court(db: Session, court: Court) -> int:
         return 0
     agg = Aggregates()
     agg.feed(hourly.get("time", []), hourly.get("precipitation", []))
-    agg.save(db, court.id)
+    # Aggregates and progress must become durable together. A crash between
+    # two commits would otherwise make the next pass count this period twice.
+    agg.save(db, court.id, commit=False)
     db.merge(KvCache(key=_last_key(court.id),
                      value_json=_month_str(*months[-1]), updated_at=hk_now()))
     db.commit()
@@ -223,6 +228,7 @@ def backfill_all(db: Session, limit: int | None = None) -> int:
         try:
             total += backfill_court(db, court)
         except Exception:  # noqa: BLE001 - one court must not kill the pass
+            db.rollback()
             logger.exception("climatology failed for %s; continuing", court.name_en)
     logger.info("climatology backfill pass: %d court-months ingested", total)
     return total

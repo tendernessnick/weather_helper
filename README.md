@@ -413,7 +413,11 @@ docker run -p 8000:8000 -v wh_data:/data weather-helper
 - `GET /api/admin/feedback?status=`（Header `X-Admin-Token`）反馈收件箱
 - `PATCH /api/admin/feedback/{id}`（Header `X-Admin-Token`）流转反馈状态（new/ack/resolved/dismissed）
 - `GET /api/admin/activity?days=30`（Header `X-Admin-Token`）活跃趋势（DAU / 上报时刻分布 / 漏斗）
-- `GET /api/health` 健康探针（数据库文件创建时间 / 大小 / 各表行数——部署后核对数据卷有没有丢）
+- `GET /api/health` 健康探针（业务表计数及持久化 revision、缓存重建与写入租约状态，不返回连接密钥）
+
+## 长期数据保存
+
+CloudBase 个人共享 PostgreSQL 的 HTTP 持久化实现见 [接入与迁移说明](docs/PERSISTENCE_HTTP.md)。12 张业务表保存在容器外，容器 SQLite 可从 PG 重建；天气历史默认不按天数删除，统计窗口独立控制。每日加密备份、保留 30 份与恢复演练见 [自动备份说明](docs/PERSISTENCE_BACKUPS.md)。
 
 ## 二期方向
 

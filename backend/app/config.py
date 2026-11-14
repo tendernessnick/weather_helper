@@ -49,11 +49,37 @@ def _env_float(name: str, default: float) -> float:
 
 @dataclass
 class Settings:
+    # cloudbase_http keeps the authoritative tables in PostgreSQL; the SQLite
+    # path below is a disposable query cache rebuilt from the remote tables.
+    persistence_backend: str = field(default_factory=lambda: os.environ.get(
+        "PERSISTENCE_BACKEND", "local"))
+    persistence_api_url: str = field(default_factory=lambda: os.environ.get(
+        "PERSISTENCE_API_URL", ""))
+    persistence_api_key: str = field(default_factory=lambda: os.environ.get(
+        "PERSISTENCE_API_KEY", ""), repr=False)
+    persistence_lease_seconds: int = field(default_factory=lambda: _env_int(
+        "PERSISTENCE_LEASE_SECONDS", 90))
+    scheduler_enabled: bool = field(default_factory=lambda: os.environ.get(
+        "SCHEDULER_ENABLED", "true").lower() in {"true", "1", "yes"})
+    first_boot_ingest_enabled: bool = field(default_factory=lambda: os.environ.get(
+        "FIRST_BOOT_INGEST_ENABLED", "true").lower() in {"true", "1", "yes"})
     database_url: str = field(default_factory=lambda: os.environ.get(
         "DATABASE_URL", "sqlite:///./weather.db"))
+    # PostgreSQL tables live outside platform/public schemas. The migration
+    # operator creates and grants this schema before starting the application.
+    database_schema: str = field(default_factory=lambda: os.environ.get(
+        "DATABASE_SCHEMA", "weather_helper"))
+    database_pool_size: int = field(default_factory=lambda: _env_int(
+        "DATABASE_POOL_SIZE", 2))
+    database_max_overflow: int = field(default_factory=lambda: _env_int(
+        "DATABASE_MAX_OVERFLOW", 0))
 
     # --- verification rules ---
     window_days: int = field(default_factory=lambda: _env_int("WINDOW_DAYS", 30))
+    # Scoring stays on its rolling window. Historical weather is retained
+    # independently; zero disables automatic deletion of weather history.
+    data_retention_days: int = field(default_factory=lambda: _env_int(
+        "DATA_RETENTION_DAYS", 0))
     rain_mm_threshold: float = field(default_factory=lambda: _env_float("RAIN_MM_THRESHOLD", 0.1))
     nowcast_mm_threshold: float = field(default_factory=lambda: _env_float("NOWCAST_MM_THRESHOLD", 0.05))
     pop_rain_threshold: int = field(default_factory=lambda: _env_int("POP_RAIN_THRESHOLD", 50))

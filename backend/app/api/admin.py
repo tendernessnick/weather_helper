@@ -7,7 +7,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import func, text
+from sqlalchemy import Integer, cast, extract, func, select, union
 from sqlalchemy.orm import Session
 
 from ..config import hk_now, settings
@@ -16,6 +16,7 @@ from ..diagnostics import db_state
 from ..models import CheckIn, Court, Feedback, ForecastSnapshot, KvCache, \
     NowcastSnapshot, Observation, PushSubscription, UserReport
 from ..scheduler import scheduler
+from ..services.pg_backup import status as backup_status
 from ..schemas import FeedbackUpdateIn
 
 router = APIRouter(tags=["admin"])
@@ -90,12 +91,15 @@ def admin_overview(db: Session = Depends(get_db)):
                       **{k: v for k, v in by_status.items() if k != "accepted"}},
     }
 
-    per_day = dict(db.query(func.date(UserReport.created_at), func.count())
-                   .filter(UserReport.created_at >= now - timedelta(days=6),
-                           UserReport.status == "accepted")
-                   .group_by(func.date(UserReport.created_at)).all())
+    # SQLite date() returns text; PostgreSQL returns date objects. Normalise
+    # both to ISO keys so the displayed trend agrees with the stored reports.
+    per_day = {str(day): count for day, count in
+               db.query(func.date(UserReport.created_at), func.count())
+               .filter(UserReport.created_at >= day_start - timedelta(days=6),
+                       UserReport.status == "accepted")
+               .group_by(func.date(UserReport.created_at)).all()}
     trend = [{"date": (now - timedelta(days=i)).strftime("%Y-%m-%d"),
-              "count": int(per_day.get((now - timedelta(days=i)).date(), 0))}
+              "count": int(per_day.get((now - timedelta(days=i)).date().isoformat(), 0))}
              for i in range(6, -1, -1)]
 
     rows = (db.query(UserReport, Court)
@@ -141,6 +145,7 @@ def admin_overview(db: Session = Depends(get_db)):
         "uptime_sec": round((now - _PROCESS_STARTED).total_seconds()),
         "sources": sources,
         "jobs": scheduler.status(),
+        "backup": backup_status(),
         "reports_today": reports_today,
         "reports_trend_7d": trend,
         "recent_reports": recent_reports,
@@ -151,7 +156,7 @@ def admin_overview(db: Session = Depends(get_db)):
             "today": db.query(Feedback).filter(Feedback.created_at >= day_start).count(),
             "new_total": db.query(Feedback).filter(Feedback.status == "new").count(),
         },
-        "db": db_state(),
+        "db": db_state(db=db),
     }
 
 
@@ -206,22 +211,26 @@ def admin_activity(days: int = Query(default=30, ge=1, le=90),
     now = hk_now()
     since = now - timedelta(days=days)
 
-    dau_rows = db.execute(text(
-        "SELECT d, COUNT(DISTINCT device_id) FROM ("
-        " SELECT date(created_at) AS d, device_id FROM user_reports WHERE created_at >= :since"
-        " UNION"
-        " SELECT date(created_at) AS d, device_id FROM checkins WHERE created_at >= :since"
-        ") GROUP BY d ORDER BY d"
-    ), {"since": since}).all()
+    activity = union(
+        select(func.date(UserReport.created_at).label("day"), UserReport.device_id)
+        .where(UserReport.created_at >= since),
+        select(func.date(CheckIn.created_at).label("day"), CheckIn.device_id)
+        .where(CheckIn.created_at >= since),
+    ).subquery()
+    dau_rows = db.execute(
+        select(activity.c.day, func.count(func.distinct(activity.c.device_id)))
+        .group_by(activity.c.day).order_by(activity.c.day)
+    ).all()
     dau_map = {str(d): c for d, c in dau_rows}
     dau = [{"date": (since.date() + timedelta(days=i)).isoformat(),
             "devices": dau_map.get((since.date() + timedelta(days=i)).isoformat(), 0)}
            for i in range(days + 1)]
 
-    hour_rows = db.execute(text(
-        "SELECT CAST(strftime('%H', created_at) AS INTEGER) AS h, COUNT(*) "
-        "FROM user_reports WHERE created_at >= :since GROUP BY h"
-    ), {"since": since}).all()
+    report_hour = cast(extract("hour", UserReport.created_at), Integer)
+    hour_rows = db.execute(
+        select(report_hour, func.count()).where(UserReport.created_at >= since)
+        .group_by(report_hour)
+    ).all()
     by_hour = {h: c for h, c in hour_rows}
 
     by_status = dict(db.query(UserReport.status, func.count())

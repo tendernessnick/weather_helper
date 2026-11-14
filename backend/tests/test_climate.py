@@ -7,7 +7,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 
 from app.config import HK_TZ  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
-from app.models import Climatology, Court, ForecastLead, ForecastSnapshot, Persistence  # noqa: E402
+from app.models import Climatology, Court, ForecastLead, ForecastSnapshot, KvCache, Persistence  # noqa: E402
 from app.services.climate import Aggregates  # noqa: E402
 from app.services.open_meteo import _upsert_court  # noqa: E402
 
@@ -127,3 +127,46 @@ def test_climate_save_accumulates(db):
     ww, wd, dw, dd = persist.wet_to_wet, persist.wet_to_dry, persist.dry_to_wet, persist.dry_to_dry
     # run1: dd=1,dw=1,wd=1 ; run2: dw=1,ww=1,wd=1
     assert (ww, wd, dw, dd) == (1, 2, 2, 1)
+
+
+def test_completed_climate_month_is_not_ingested_again(db, monkeypatch):
+    from app.services import climate
+    court = Court(id="c1", name_en="T", name_tc="T", name_sc="T",
+                  district_en="D", district_tc="D", lat=22.3, lon=114.2, letter="T")
+    db.add_all([court, KvCache(key="climate_last:c1", value_json="2026-10",
+                              updated_at=datetime(2026, 11, 1))])
+    db.commit()
+    monkeypatch.setattr(climate, "hk_now", lambda: datetime(2026, 11, 15))
+    def unexpected_fetch(*args, **kwargs):
+        pytest.fail("a completed archive month must not be fetched again")
+    monkeypatch.setattr(climate, "_fetch_period", unexpected_fetch)
+    assert climate.backfill_court(db, court) == 0
+
+
+def test_climate_progress_and_aggregates_commit_together(db, monkeypatch):
+    from app.services import climate
+    court = Court(id="c1", name_en="T", name_tc="T", name_sc="T",
+                  district_en="D", district_tc="D", lat=22.3, lon=114.2, letter="T")
+    db.add_all([court, KvCache(key="climate_last:c1", value_json="2026-09",
+                              updated_at=datetime(2026, 10, 1))])
+    db.commit()
+    monkeypatch.setattr(climate, "hk_now", lambda: datetime(2026, 11, 15))
+    monkeypatch.setattr(climate.time, "sleep", lambda _: None)
+    requested = []
+    def fetch(_client, _lat, _lon, first, last):
+        requested.append((first, last))
+        return {"time": ["2026-10-01T01:00", "2026-10-01T02:00"],
+                "precipitation": [0.0, 1.0]}
+    monkeypatch.setattr(climate, "_fetch_period", fetch)
+    commits = []
+    real_commit = db.commit
+    def track_commit():
+        assert db.get(KvCache, "climate_last:c1").value_json == "2026-10"
+        assert db.new or db.dirty
+        commits.append(True)
+        real_commit()
+    monkeypatch.setattr(db, "commit", track_commit)
+    assert climate.backfill_court(db, court) == 1
+    assert requested == [("2026-10-01", "2026-10-31")]
+    assert len(commits) == 1
+    assert db.query(Climatology).count() == 2

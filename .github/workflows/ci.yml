@@ -11,6 +11,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: weather_test
+          POSTGRES_USER: weather_test
+          POSTGRES_PASSWORD: weather_test_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U weather_test -d weather_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     defaults:
       run:
         working-directory: backend
@@ -25,6 +39,7 @@ jobs:
         env:
           DATABASE_URL: sqlite://
           ADMIN_TOKEN: test-token
+          PG_MIGRATION_TEST_URL: postgresql+psycopg://weather_test:weather_test_ci@127.0.0.1:5432/weather_test
 
   frontend:
     runs-on: ubuntu-latest

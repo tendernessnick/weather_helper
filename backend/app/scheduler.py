@@ -51,18 +51,25 @@ def _job_push_check():
         push.check_and_notify(db)
 
 
+def _job_database_backup():
+    from .services.pg_backup import run_scheduled_backup
+    run_scheduled_backup()
+
+
 def _job_purge():
-    cutoff = hk_now() - timedelta(days=settings.window_days + 2)
     with SessionLocal() as db:
-        db.execute(delete(ForecastSnapshot).where(ForecastSnapshot.target_hour < cutoff))
-        db.execute(delete(ForecastLead).where(ForecastLead.target_hour < cutoff))
-        db.execute(delete(NowcastSnapshot).where(NowcastSnapshot.fetched_at < cutoff))
-        db.execute(delete(Observation).where(Observation.observed_hour < cutoff))
+        if settings.data_retention_days > 0:
+            cutoff = hk_now() - timedelta(days=settings.data_retention_days)
+            db.execute(delete(ForecastSnapshot).where(ForecastSnapshot.target_hour < cutoff))
+            db.execute(delete(ForecastLead).where(ForecastLead.target_hour < cutoff))
+            db.execute(delete(NowcastSnapshot).where(NowcastSnapshot.fetched_at < cutoff))
+            db.execute(delete(Observation).where(Observation.observed_hour < cutoff))
         # Keep accepted reports as an audit trail; drop rejected ones with the window.
+        cutoff = hk_now() - timedelta(days=settings.window_days + 2)
         db.execute(delete(UserReport).where(
             UserReport.created_at < cutoff, UserReport.status != "accepted"))
         db.commit()
-    logger.info("purged rows older than %s", cutoff)
+    logger.info("purge complete (weather retention days=%s)", settings.data_retention_days)
 
 
 JOBS = [
@@ -82,6 +89,9 @@ JOBS = [
     # missing months are fetched) and heals courts skipped by archive 429s
     # within a day instead of waiting a month
     ("climate_update", climate.update_recent_months, 24 * 3600),
+    # The job checks the last verified remote receipt; checking hourly does
+    # not create a new backup on every restart or every tick.
+    ("database_backup", _job_database_backup, 3600),
 ]
 
 # Per-job single-flight locks: the startup ingest (main.py) and the
@@ -94,8 +104,17 @@ _job_locks = {job_id: threading.Lock() for job_id, _fn, _interval in JOBS}
 _JOB_FNS = {job_id: fn for job_id, fn, _interval in JOBS}
 
 
+def _writer_available() -> bool:
+    from .db import get_persistence
+    persistence = get_persistence()
+    return persistence is None or persistence.can_write()
+
+
 def run_job_exclusive(job_id: str) -> None:
     """Run one job's callable unless the same job is already in flight."""
+    if not _writer_available():
+        logger.info("job %s deferred: waiting for database writer lease", job_id)
+        return
     lock = _job_locks[job_id]
     if not lock.acquire(blocking=False):
         logger.info("job %s skipped: another run is in flight", job_id)
@@ -155,8 +174,12 @@ class SimpleScheduler:
         logger.info("simple scheduler stopped")
 
     def _tick(self) -> None:
+        if not _writer_available():
+            return
         now = time.monotonic()
         for job_id, fn, interval in JOBS:
+            if not _writer_available():
+                return
             if now >= self._next[job_id]:
                 lock = _job_locks[job_id]
                 if not lock.acquire(blocking=False):

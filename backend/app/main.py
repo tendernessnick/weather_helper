@@ -7,14 +7,15 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api import (admin, best, checkins, courts, feedback, map as map_api,
                   reports, stats, subscriptions)
 from .config import settings
-from .db import SessionLocal, init_db
+from .db import SessionLocal, configure_http_persistence, get_persistence, init_db
 from .diagnostics import db_state
+from .persistence_http import PersistenceUnavailable
 from .scheduler import run_job_exclusive, scheduler
 from .services.lcsd import ensure_courts
 
@@ -37,21 +38,56 @@ def _first_boot_ingest() -> None:
             logger.exception("startup ingest %s failed", job_id)
 
 
+def _ingest_after_writer_ready(stop: threading.Event) -> None:
+    """A replacement container waits for the old database writer to leave."""
+    while not stop.is_set():
+        persistence = get_persistence()
+        if persistence is None or persistence.can_write():
+            try:
+                if persistence is not None:
+                    with SessionLocal() as db:
+                        ensure_courts(db)
+                _first_boot_ingest()
+            except Exception:
+                logger.exception("initial database writer setup failed")
+            return
+        stop.wait(1)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    with SessionLocal() as db:
-        ensure_courts(db)
+    persistence = configure_http_persistence()
+    if persistence is None:
+        init_db()
+        with SessionLocal() as db:
+            ensure_courts(db)
+    else:
+        persistence.start()
     logger.info("startup db state: %s", db_state())
-    scheduler.start()
-    threading.Thread(target=_first_boot_ingest, daemon=True).start()
+    stop = threading.Event()
+    if settings.scheduler_enabled:
+        scheduler.start()
+    if settings.first_boot_ingest_enabled:
+        threading.Thread(target=_ingest_after_writer_ready, args=(stop,),
+                         name="first-boot-ingest", daemon=True).start()
     logger.info("startup complete")
-    yield
-    scheduler.shutdown(wait=False)
+    try:
+        yield
+    finally:
+        stop.set()
+        scheduler.shutdown(wait=True)
+        if persistence is not None:
+            persistence.stop()
 
 
 app = FastAPI(title="Weather Helper for Hong Kong Tennis", version="0.1.0",
               lifespan=lifespan)
+
+
+@app.exception_handler(PersistenceUnavailable)
+async def persistence_unavailable(_request, _exc):
+    return JSONResponse(status_code=503, headers={"Retry-After": "5"},
+                        content={"detail": "数据库正在同步或暂时不可用，请稍后重试。"})
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,7 +109,16 @@ app.include_router(admin.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "db": db_state()}
+    persistence = get_persistence()
+    # A new container must become ready for the platform to retire its old
+    # writer. Business endpoints remain 503 until the cache rebuild completes.
+    state = persistence.status() if persistence is not None else None
+    db = ({"database_backend": "postgresql_http", "cache_state": state["reason"]}
+          if state is not None and not state["cache_valid"] else db_state())
+    out = {"status": "ok", "db": db}
+    if persistence is not None:
+        out["persistence"] = state
+    return out
 
 
 # Serve the built frontend when present (single-service deployment).
