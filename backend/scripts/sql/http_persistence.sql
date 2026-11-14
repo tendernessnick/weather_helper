@@ -8,12 +8,12 @@ REVOKE ALL ON SCHEMA weather_helper FROM PUBLIC, anon, authenticated;
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.checkins (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	device_id VARCHAR(64) NOT NULL, 
-	played_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	duration_hours FLOAT NOT NULL, 
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	device_id VARCHAR(64) NOT NULL,
+	played_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	duration_hours FLOAT NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (id)
 )
 
@@ -24,13 +24,13 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_checkins_played_at ON weather_helpe
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.climatology (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	month INTEGER NOT NULL, 
-	hour INTEGER NOT NULL, 
-	samples INTEGER NOT NULL, 
-	rain_count INTEGER NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	month INTEGER NOT NULL,
+	hour INTEGER NOT NULL,
+	samples INTEGER NOT NULL,
+	rain_count INTEGER NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_clim_court_mh UNIQUE (court_id, month, hour)
 )
 
@@ -39,20 +39,20 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_climatology_court_id ON weather_hel
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.courts (
-	id VARCHAR(32) NOT NULL, 
-	name_en VARCHAR(200) NOT NULL, 
-	name_tc VARCHAR(200) NOT NULL, 
-	name_sc VARCHAR(200) NOT NULL, 
-	district_en VARCHAR(100) NOT NULL, 
-	district_tc VARCHAR(100) NOT NULL, 
-	address_en TEXT NOT NULL, 
-	address_tc TEXT NOT NULL, 
-	court_no VARCHAR(200) NOT NULL, 
-	opening_hours TEXT NOT NULL, 
-	phone VARCHAR(100) NOT NULL, 
-	lat FLOAT NOT NULL, 
-	lon FLOAT NOT NULL, 
-	letter VARCHAR(1) NOT NULL, 
+	id VARCHAR(32) NOT NULL,
+	name_en VARCHAR(200) NOT NULL,
+	name_tc VARCHAR(200) NOT NULL,
+	name_sc VARCHAR(200) NOT NULL,
+	district_en VARCHAR(100) NOT NULL,
+	district_tc VARCHAR(100) NOT NULL,
+	address_en TEXT NOT NULL,
+	address_tc TEXT NOT NULL,
+	court_no VARCHAR(200) NOT NULL,
+	opening_hours TEXT NOT NULL,
+	phone VARCHAR(100) NOT NULL,
+	lat FLOAT NOT NULL,
+	lon FLOAT NOT NULL,
+	letter VARCHAR(1) NOT NULL,
 	PRIMARY KEY (id)
 )
 
@@ -61,15 +61,15 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_courts_letter ON weather_helper.cou
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.feedback (
-	id SERIAL NOT NULL, 
-	device_id VARCHAR(64) NOT NULL, 
-	court_id VARCHAR(32), 
-	category VARCHAR(20) NOT NULL, 
-	message TEXT NOT NULL, 
-	page VARCHAR(200) NOT NULL, 
-	status VARCHAR(20) NOT NULL, 
-	admin_note TEXT NOT NULL, 
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+	id SERIAL NOT NULL,
+	device_id VARCHAR(64) NOT NULL,
+	court_id VARCHAR(32),
+	category VARCHAR(20) NOT NULL,
+	message TEXT NOT NULL,
+	page VARCHAR(200) NOT NULL,
+	status VARCHAR(20) NOT NULL,
+	admin_note TEXT NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (id)
 )
 
@@ -81,14 +81,14 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_feedback_status ON weather_helper.f
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.forecast_leads (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	target_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	lead_bucket VARCHAR(4) NOT NULL, 
-	precip_prob INTEGER NOT NULL, 
-	precip_mm FLOAT NOT NULL, 
-	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	target_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	lead_bucket VARCHAR(4) NOT NULL,
+	precip_prob INTEGER NOT NULL,
+	precip_mm FLOAT NOT NULL,
+	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_fl_court_hour_bucket UNIQUE (court_id, target_hour, lead_bucket)
 )
 
@@ -98,18 +98,18 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_forecast_leads_target_hour ON weath
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.forecast_snapshots (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	source VARCHAR(20) NOT NULL, 
-	target_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	precip_prob INTEGER NOT NULL, 
-	precip_mm FLOAT NOT NULL, 
-	weather_code INTEGER NOT NULL, 
-	wind_kmh FLOAT NOT NULL, 
-	apparent_temp FLOAT, 
-	humidity FLOAT, 
-	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	source VARCHAR(20) NOT NULL,
+	target_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	precip_prob INTEGER NOT NULL,
+	precip_mm FLOAT NOT NULL,
+	weather_code INTEGER NOT NULL,
+	wind_kmh FLOAT NOT NULL,
+	apparent_temp FLOAT,
+	humidity FLOAT,
+	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_fc_court_hour UNIQUE (court_id, target_hour)
 )
 
@@ -120,9 +120,9 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_forecast_snapshots_target_hour ON w
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.kv_cache (
-	key VARCHAR(50) NOT NULL, 
-	value_json TEXT NOT NULL, 
-	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+	key VARCHAR(50) NOT NULL,
+	value_json TEXT NOT NULL,
+	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (key)
 )
 
@@ -131,11 +131,11 @@ CREATE TABLE IF NOT EXISTS weather_helper.kv_cache (
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.nowcast_snapshots (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	steps_json TEXT NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	steps_json TEXT NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_nc_court_fetch UNIQUE (court_id, fetched_at)
 )
 
@@ -145,14 +145,14 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_nowcast_snapshots_fetched_at ON wea
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.observations (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	observed_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	station_name VARCHAR(100) NOT NULL, 
-	rainfall_mm FLOAT NOT NULL, 
-	rain BOOLEAN NOT NULL, 
-	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	observed_hour TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	station_name VARCHAR(100) NOT NULL,
+	rainfall_mm FLOAT NOT NULL,
+	rain BOOLEAN NOT NULL,
+	fetched_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_obs_court_hour UNIQUE (court_id, observed_hour)
 )
 
@@ -162,15 +162,15 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_observations_observed_hour ON weath
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.persistence (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	month INTEGER NOT NULL, 
-	wet_to_wet INTEGER NOT NULL, 
-	wet_to_dry INTEGER NOT NULL, 
-	dry_to_wet INTEGER NOT NULL, 
-	dry_to_dry INTEGER NOT NULL, 
-	survival_json TEXT NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	month INTEGER NOT NULL,
+	wet_to_wet INTEGER NOT NULL,
+	wet_to_dry INTEGER NOT NULL,
+	dry_to_wet INTEGER NOT NULL,
+	dry_to_dry INTEGER NOT NULL,
+	survival_json TEXT NOT NULL,
+	PRIMARY KEY (id),
 	CONSTRAINT uq_persist_court_month UNIQUE (court_id, month)
 )
 
@@ -179,17 +179,17 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_persistence_court_id ON weather_hel
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.push_subscriptions (
-	id SERIAL NOT NULL, 
-	device_id VARCHAR(64) NOT NULL, 
-	endpoint TEXT NOT NULL, 
-	p256dh VARCHAR(200) NOT NULL, 
-	auth VARCHAR(100) NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	play_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	hours_before FLOAT NOT NULL, 
-	notified_at TIMESTAMP WITHOUT TIME ZONE, 
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
+	id SERIAL NOT NULL,
+	device_id VARCHAR(64) NOT NULL,
+	endpoint TEXT NOT NULL,
+	p256dh VARCHAR(200) NOT NULL,
+	auth VARCHAR(100) NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	play_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	hours_before FLOAT NOT NULL,
+	notified_at TIMESTAMP WITHOUT TIME ZONE,
+	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
 	UNIQUE (endpoint)
 )
 
@@ -199,17 +199,17 @@ CREATE INDEX IF NOT EXISTS ix_weather_helper_push_subscriptions_device_id ON wea
 
 
 CREATE TABLE IF NOT EXISTS weather_helper.user_reports (
-	id SERIAL NOT NULL, 
-	court_id VARCHAR(32) NOT NULL, 
-	device_id VARCHAR(64) NOT NULL, 
-	was_raining BOOLEAN NOT NULL, 
-	intensity VARCHAR(10) NOT NULL, 
-	lat FLOAT NOT NULL, 
-	lon FLOAT NOT NULL, 
-	accuracy_m FLOAT, 
-	distance_m FLOAT, 
-	status VARCHAR(30) NOT NULL, 
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+	id SERIAL NOT NULL,
+	court_id VARCHAR(32) NOT NULL,
+	device_id VARCHAR(64) NOT NULL,
+	was_raining BOOLEAN NOT NULL,
+	intensity VARCHAR(10) NOT NULL,
+	lat FLOAT NOT NULL,
+	lon FLOAT NOT NULL,
+	accuracy_m FLOAT,
+	distance_m FLOAT,
+	status VARCHAR(30) NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (id)
 )
 
